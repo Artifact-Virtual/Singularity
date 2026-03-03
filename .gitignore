@@ -1,0 +1,92 @@
+# ============================================================
+#  SINGULARITY [AE] — .gitignore
+# ============================================================
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+*.whl
+
+# Virtual environments
+.venv/
+venv/
+env/
+.hektor-env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.settings/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+credentials/
+secrets/
+
+# Runtime data (operational, not source)
+.core/logs/
+.core/reports/
+.core/secrets/
+.singularity/
+
+# Security audits (may contain credential references)
+.core/operations/*security-audit*
+.core/operations/*flush-security*
+
+# Active config (use .example)
+config/singularity.yaml
+
+# COMB archives
+.core/logs/comb-archive/
+
+# Node (if any)
+node_modules/
+
+# Testing artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.mypy_cache/
+
+# Model files
+*.pt
+*.pth
+*.onnx
+*.gguf
+*.safetensors
+*.bin
+
+# Large data
+*.db
+*.sqlite
+*.sqlite3
+-e 
+# Deprecated
+aria/csuite/roles_v1.py
+
+# Sensitive operational files — NEVER commit
+.core/logs/
+.core/operations/comb-flush-security-audit.md
+.core/operations/comb-security-audit.md

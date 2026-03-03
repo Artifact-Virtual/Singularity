@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "singularity-ae"
+version = "0.1.0"
+description = "Autonomous Enterprise Runtime — self-scaling AI executive agents, product monitoring, and organizational intelligence."
+readme = "README.md"
+license = {text = "Proprietary"}
+requires-python = ">=3.11"
+authors = [
+    {name = "Ali Shakil", email = "ali.shakil@artifactvirtual.com"},
+    {name = "Ava Shakil", email = "ava@artifactvirtual.com"},
+]
+keywords = ["ai", "enterprise", "autonomous", "agents", "monitoring"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+    "Topic :: System :: Systems Administration",
+]
+
+[project.urls]
+Homepage = "https://artifactvirtual.com"
+Repository = "https://github.com/Artifact-Virtual/singularity"
+
+[project.scripts]
+singularity = "aria.cli.main:main"
+
+[tool.setuptools.packages.find]
+include = ["aria*"]
