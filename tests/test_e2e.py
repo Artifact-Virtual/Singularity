@@ -735,6 +735,92 @@ async def test_vitals():
     assert vitals.uptime_seconds >= 0
 
 
+async def test_feedback_bridge():
+    """Test POA audit → Immune system feedback loop."""
+    from singularity.immune.health import HealthTracker, HealthStatus
+    from singularity.immune.auditor import Auditor
+    from singularity.immune.feedback import FeedbackBridge
+    from singularity.poa.runtime import AuditReport, CheckResult
+
+    tracker = HealthTracker()  # no persistence
+    auditor = Auditor()
+    bridge = FeedbackBridge(tracker=tracker, auditor=auditor)
+
+    # 1. Clean audit → no damage
+    clean_report = AuditReport(
+        product_id="test-product",
+        product_name="Test Product",
+        overall_status="green",
+    )
+    clean_report.checks = [
+        CheckResult(name="endpoint:api", passed=True, message="200 OK", severity="info"),
+        CheckResult(name="disk:root", passed=True, message="40% used", severity="info"),
+    ]
+    events = bridge.process_audit(clean_report)
+    assert tracker.hp == 100, f"Clean audit should not damage: HP={tracker.hp}"
+    assert all(e.damage_dealt == 0 for e in events)
+
+    # 2. Failed audit → damage dealt
+    bad_report = AuditReport(
+        product_id="test-product",
+        product_name="Test Product",
+        overall_status="red",
+    )
+    bad_report.checks = [
+        CheckResult(name="endpoint:api", passed=False, message="Connection refused", severity="critical"),
+        CheckResult(name="service:test", passed=False, message="inactive", severity="critical"),
+    ]
+    events = bridge.process_audit(bad_report)
+    assert tracker.hp < 100, f"Failed audit should damage: HP={tracker.hp}"
+    assert any(e.damage_dealt > 0 for e in events)
+
+    # 3. Consecutive clean audits → trigger auditor
+    for i in range(3):
+        clean_report2 = AuditReport(
+            product_id="test-product",
+            product_name="Test Product",
+            overall_status="green",
+        )
+        clean_report2.checks = [
+            CheckResult(name="endpoint:api", passed=True, message="200 OK", severity="info"),
+        ]
+        bridge.process_audit(clean_report2)
+
+    assert bridge.total_healer_triggers >= 1, "Should have triggered auditor on clean streak"
+
+    # 4. Summary
+    summary = bridge.summary()
+    assert summary["total_audits_processed"] >= 5
+    assert summary["total_damage_routed"] > 0
+    assert "test-product" in summary["clean_streaks"]
+
+
+async def test_feedback_damage_cap():
+    """Test that max damage per audit is enforced."""
+    from singularity.immune.health import HealthTracker
+    from singularity.immune.auditor import Auditor
+    from singularity.immune.feedback import FeedbackBridge
+    from singularity.poa.runtime import AuditReport, CheckResult
+
+    tracker = HealthTracker()
+    auditor = Auditor()
+    bridge = FeedbackBridge(tracker=tracker, auditor=auditor)
+
+    # Massive failure — many critical checks
+    catastrophe = AuditReport(
+        product_id="doomed", product_name="Doomed",
+        overall_status="red",
+    )
+    catastrophe.checks = [
+        CheckResult(name=f"endpoint:ep{i}", passed=False, message="boom", severity="critical")
+        for i in range(20)  # 20 failed endpoints
+    ]
+    events = bridge.process_audit(catastrophe)
+    total_dmg = sum(e.damage_dealt for e in events)
+    assert total_dmg <= bridge.MAX_DAMAGE_PER_AUDIT, \
+        f"Damage {total_dmg} exceeds cap {bridge.MAX_DAMAGE_PER_AUDIT}"
+
+
 # ══════════════════════════════════════════════════════════════
 # AUDITOR TESTS
 # ══════════════════════════════════════════════════════════════
@@ -934,6 +1020,8 @@ async def main():
         
         # Immune
         ("immune.vitals", test_vitals),
+        ("immune.feedback_bridge", test_feedback_bridge),
+        ("immune.feedback_damage_cap", test_feedback_damage_cap),
         
         # Auditor
         ("auditor.scanner", test_auditor_scanner),

@@ -18,9 +18,12 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import logging
 import os
 import sys
 from pathlib import Path
+
+logger = logging.getLogger("singularity.cli")
 
 # Ensure project root is importable
 PROJECT_ROOT = Path(__file__).parent.parent.parent
@@ -110,6 +113,13 @@ def main():
     # ── test ──
     sub.add_parser("test", help="Run end-to-end test suite")
 
+    # ── immune ──
+    p_immune = sub.add_parser("immune", help="Immune system status & control")
+    immune_sub = p_immune.add_subparsers(dest="immune_command")
+    immune_sub.add_parser("status", help="Show health tracker status")
+    immune_sub.add_parser("audit", help="Run Auditor examination")
+    p_immune_all = immune_sub.add_parser("audit-all", help="Audit all active POAs and feed into immune")
+
     args = parser.parse_args()
 
     try:
@@ -131,6 +141,8 @@ def main():
             cmd_changeset(args)
         elif args.command == "test":
             cmd_test(args)
+        elif args.command == "immune":
+            cmd_immune(args)
     except KeyboardInterrupt:
         print("\nAborted.")
         sys.exit(1)
@@ -644,6 +656,25 @@ def cmd_poa(args):
             
             icon = {"green": "🟢", "yellow": "🟡", "red": "🔴"}.get(report.overall_status, "⚪")
             success(f"POA created and activated. First audit: {icon} {report.overall_status.upper()}")
+
+            # Feed into immune system
+            try:
+                from singularity.immune.health import HealthTracker
+                from singularity.immune.auditor import Auditor
+                from singularity.immune.feedback import FeedbackBridge
+
+                state_path = sg_dir / "immune" / "health-state.json"
+                state_path.parent.mkdir(parents=True, exist_ok=True)
+
+                tracker = HealthTracker(state_path=state_path)
+                auditor = Auditor()
+                bridge = FeedbackBridge(tracker=tracker, auditor=auditor)
+                bridge.process_audit(report)
+
+                snap = tracker.snapshot()
+                print(f"  ❤️ Immune: {snap['bar']}")
+            except Exception:
+                pass
         else:
             warn("Not approved. Run with --approve to create.")
     
@@ -658,6 +689,35 @@ def cmd_poa(args):
         POARuntime.save_audit(report, sg_dir / "poas")
         
         print(report.to_markdown())
+
+        # ── Feedback Bridge: route audit into immune system ──
+        try:
+            from singularity.immune.health import HealthTracker
+            from singularity.immune.auditor import Auditor
+            from singularity.immune.feedback import FeedbackBridge
+
+            state_path = sg_dir / "immune" / "health-state.json"
+            state_path.parent.mkdir(parents=True, exist_ok=True)
+
+            tracker = HealthTracker(state_path=state_path)
+            auditor = Auditor()
+            bridge = FeedbackBridge(tracker=tracker, auditor=auditor)
+
+            events = bridge.process_audit(report)
+
+            # Show immune status
+            snap = tracker.snapshot()
+            print()
+            print(f"  ❤️ Immune: {snap['bar']}")
+            if events and any(e.damage_dealt > 0 for e in events):
+                dmg = sum(e.damage_dealt for e in events)
+                print(f"  💥 Damage routed: -{dmg} HP")
+            if snap['status'] != 'healthy':
+                status_icon = {"stressed": "⚠️", "degraded": "🔶", "critical": "🔴", "down": "💀"}.get(snap['status'], "")
+                print(f"  {status_icon} Status: {snap['status'].upper()}")
+        except Exception as e:
+            # Immune feedback is enhancement, not critical — don't fail audit
+            logger.debug(f"Immune feedback skipped: {e}")
 
 
 def cmd_scale_report(args):
@@ -719,6 +779,106 @@ def cmd_test(args):
     """Run end-to-end tests."""
     test_file = PROJECT_ROOT / "tests" / "test_e2e.py"
     os.execvp(sys.executable, [sys.executable, str(test_file)])
+
+
+def cmd_immune(args):
+    """Immune system status and control."""
+    from .formatters import header, info
+
+    sg_dir = Path(".singularity")
+    if not sg_dir.exists():
+        print("❌ Not initialized. Run 'singularity init' first.")
+        sys.exit(1)
+
+    from singularity.immune.health import HealthTracker
+    from singularity.immune.auditor import Auditor
+    from singularity.immune.feedback import FeedbackBridge
+
+    state_path = sg_dir / "immune" / "health-state.json"
+    state_path.parent.mkdir(parents=True, exist_ok=True)
+
+    tracker = HealthTracker(state_path=state_path)
+    auditor = Auditor()
+    bridge = FeedbackBridge(tracker=tracker, auditor=auditor)
+
+    sub = args.immune_command or "status"
+
+    if sub == "status":
+        header("SINGULARITY [AE] — Immune System")
+        snap = tracker.snapshot()
+        print(f"  {snap['bar']}")
+        print(f"  Status:    {snap['status'].upper()}")
+        print(f"  Deaths:    {snap['deaths']}")
+        print(f"  Damage:    {snap['total_damage']} total")
+        print(f"  Healing:   {snap['total_healing']} total")
+        print(f"  Shield:    {'🛡️ ' + str(snap['shield_hp']) + ' HP' if snap['shield_active'] else 'inactive'}")
+        if snap['last_damage_ago'] is not None:
+            ago = snap['last_damage_ago']
+            if ago < 60:
+                ago_str = f"{ago:.0f}s ago"
+            elif ago < 3600:
+                ago_str = f"{ago/60:.0f}m ago"
+            else:
+                ago_str = f"{ago/3600:.1f}h ago"
+            print(f"  Last hit:  {ago_str}")
+        if snap['status_effects']:
+            print()
+            for eff in snap['status_effects']:
+                print(f"  ⚡ {eff['name']}: {eff['description']}")
+        if snap['recent_events']:
+            print()
+            print("  Recent events:")
+            for ev in snap['recent_events'][-5:]:
+                icon = "💥" if ev['type'] == 'damage' else "💚"
+                sign = "-" if ev['type'] == 'damage' else "+"
+                print(f"    {icon} {sign}{ev['amount']} HP [{ev['source']}] — {ev['description'][:60]}")
+
+    elif sub == "audit":
+        header("SINGULARITY [AE] — Auditor Examination")
+        diagnosis = auditor.audit(tracker)
+        print(f"  HP:         {diagnosis.hp_observed}/{tracker.MAX_HP}")
+        print(f"  Status:     {diagnosis.status_observed}")
+        print(f"  Vitals:     {'✅ clear' if diagnosis.vitals_clear else '❌ NOT clear'}")
+        print(f"  Damage:     {'🔴 active' if diagnosis.damage_active else '✅ subsided'}")
+        if diagnosis.prescribed_heal:
+            print(f"  Heal:       +{diagnosis.prescribed_amount} HP [{diagnosis.prescribed_heal.value}]")
+        print(f"  Reasoning:  {diagnosis.reasoning}")
+
+    elif sub == "audit-all":
+        header("SINGULARITY [AE] — Full POA Audit → Immune")
+        from singularity.poa.manager import POAManager
+        from singularity.poa.runtime import POARuntime
+
+        mgr = POAManager(sg_dir)
+        active = mgr.list_active()
+
+        if not active:
+            info("No active POAs.")
+            return
+
+        total_damage = 0
+        for config in active:
+            report = POARuntime.run_audit(config)
+            POARuntime.save_audit(report, sg_dir / "poas")
+            events = bridge.process_audit(report)
+            dmg = sum(e.damage_dealt for e in events)
+            total_damage += dmg
+
+            icon = {"green": "🟢", "yellow": "🟡", "red": "🔴"}.get(report.overall_status, "⚪")
+            dmg_str = f" (💥 -{dmg} HP)" if dmg > 0 else ""
+            print(f"  {icon} {config.product_name}: {report.passed}/{len(report.checks)} passed{dmg_str}")
+
+        # Show final immune state
+        snap = tracker.snapshot()
+        print()
+        print(f"  ❤️ {snap['bar']}")
+        if total_damage > 0:
+            print(f"  Total damage: -{total_damage} HP")
+        
+        # Trigger auditor after full scan
+        bridge.force_audit()
+        snap = tracker.snapshot()
+        print(f"  ❤️ After heal: {snap['bar']}")
 
 
 def cmd_changeset(args):
