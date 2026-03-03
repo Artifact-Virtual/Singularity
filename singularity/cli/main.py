@@ -845,9 +845,10 @@ def cmd_immune(args):
         print(f"  Reasoning:  {diagnosis.reasoning}")
 
     elif sub == "audit-all":
-        header("SINGULARITY [AE] — Full POA Audit → Immune")
+        header("SINGULARITY [AE] — Full POA Audit → Reflect → Immune")
         from singularity.poa.manager import POAManager
         from singularity.poa.runtime import POARuntime
+        from singularity.immune.reflector import Reflector
 
         mgr = POAManager(sg_dir)
         active = mgr.list_active()
@@ -856,29 +857,20 @@ def cmd_immune(args):
             info("No active POAs.")
             return
 
-        total_damage = 0
+        # Create Reflector — sits above the bridge
+        reflector = Reflector(bridge=bridge)
+
+        # Phase 1: Ingest all audits through Reflector → Bridge → Immune
         for config in active:
             report = POARuntime.run_audit(config)
             POARuntime.save_audit(report, sg_dir / "poas")
-            events = bridge.process_audit(report)
-            dmg = sum(e.damage_dealt for e in events)
-            total_damage += dmg
+            reflector.ingest(config, report)
 
-            icon = {"green": "🟢", "yellow": "🟡", "red": "🔴"}.get(report.overall_status, "⚪")
-            dmg_str = f" (💥 -{dmg} HP)" if dmg > 0 else ""
-            print(f"  {icon} {config.product_name}: {report.passed}/{len(report.checks)} passed{dmg_str}")
+        # Phase 2: Reflect — Singularity reviews itself before showing the human
+        result = reflector.reflect()
 
-        # Show final immune state
-        snap = tracker.snapshot()
-        print()
-        print(f"  ❤️ {snap['bar']}")
-        if total_damage > 0:
-            print(f"  Total damage: -{total_damage} HP")
-        
-        # Trigger auditor after full scan
-        bridge.force_audit()
-        snap = tracker.snapshot()
-        print(f"  ❤️ After heal: {snap['bar']}")
+        # Phase 3: Show refined output
+        print(result.render())
 
 
 def cmd_changeset(args):

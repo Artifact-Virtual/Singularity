@@ -821,6 +821,167 @@ async def test_feedback_damage_cap():
         f"Damage {total_dmg} exceeds cap {bridge.MAX_DAMAGE_PER_AUDIT}"
 
 
+async def test_reflector_classification():
+    """Test Reflector POA state classification and noise filtering."""
+    from singularity.immune.health import HealthTracker
+    from singularity.immune.auditor import Auditor
+    from singularity.immune.feedback import FeedbackBridge
+    from singularity.immune.reflector import Reflector, POAState
+    from singularity.poa.runtime import AuditReport, CheckResult
+    from singularity.poa.manager import POAConfig, Endpoint
+
+    tracker = HealthTracker()
+    auditor = Auditor()
+    bridge = FeedbackBridge(tracker=tracker, auditor=auditor)
+    reflector = Reflector(bridge=bridge)
+
+    # ── Product A: healthy product with endpoints (will go dormant) ──
+    config_a = POAConfig(
+        product_name="Healthy API",
+        product_id="healthy-api",
+        endpoints=[Endpoint(url="http://localhost:9999", name="api")],
+    )
+
+    # Feed 6 consecutive green audits
+    for i in range(6):
+        report = AuditReport(product_id="healthy-api", product_name="Healthy API", overall_status="green")
+        report.checks = [CheckResult(name="endpoint:api", passed=True, message="200 OK", severity="info")]
+        reflector.ingest(config_a, report)
+
+    result = reflector.reflect()
+
+    # Should classify as dormant (5+ consecutive green)
+    assert len(result.dormant) == 1, f"Expected 1 dormant, got {len(result.dormant)}"
+    assert result.dormant[0][0].product_id == "healthy-api"
+    profile_a = reflector.get_profile("healthy-api")
+    assert profile_a.state == POAState.DORMANT
+    assert profile_a.suppressed is True
+    assert profile_a.recommended_interval_hours == reflector.DORMANT_INTERVAL_HOURS
+
+    # ── Product B: failing product (will go critical) ──
+    config_b = POAConfig(
+        product_name="Broken Service",
+        product_id="broken-service",
+        endpoints=[Endpoint(url="http://localhost:9998", name="svc")],
+        service_name="broken.service",
+    )
+
+    for i in range(3):
+        report = AuditReport(product_id="broken-service", product_name="Broken Service", overall_status="red")
+        report.checks = [
+            CheckResult(name="endpoint:svc", passed=False, message="Connection refused", severity="critical"),
+            CheckResult(name="service:broken.service", passed=False, message="inactive", severity="critical"),
+        ]
+        reflector.ingest(config_b, report)
+
+    result2 = reflector.reflect()
+
+    assert len(result2.critical) == 1, f"Expected 1 critical, got {len(result2.critical)}"
+    assert result2.critical[0][0].product_id == "broken-service"
+    assert result2.needs_attention is True
+
+    # ── Product C: no endpoints, no service → unnecessary ──
+    config_c = POAConfig(
+        product_name="Ghost Product",
+        product_id="ghost-product",
+    )
+
+    report_c = AuditReport(product_id="ghost-product", product_name="Ghost Product", overall_status="green")
+    report_c.checks = [
+        CheckResult(name="disk:root", passed=True, message="40%", severity="info"),
+        CheckResult(name="memory", passed=True, message="38%", severity="info"),
+    ]
+    reflector.ingest(config_c, report_c)
+
+    result3 = reflector.reflect()
+    assert len(result3.unnecessary) == 1, f"Expected 1 unnecessary, got {len(result3.unnecessary)}"
+    assert result3.unnecessary[0][0].product_id == "ghost-product"
+
+
+async def test_reflector_dormant_blip():
+    """Test DORMANT → WATCH → DORMANT transition."""
+    from singularity.immune.health import HealthTracker
+    from singularity.immune.auditor import Auditor
+    from singularity.immune.feedback import FeedbackBridge
+    from singularity.immune.reflector import Reflector, POAState
+    from singularity.poa.runtime import AuditReport, CheckResult
+    from singularity.poa.manager import POAConfig, Endpoint
+
+    tracker = HealthTracker()
+    auditor = Auditor()
+    bridge = FeedbackBridge(tracker=tracker, auditor=auditor)
+    reflector = Reflector(bridge=bridge)
+
+    config = POAConfig(
+        product_name="Stable API",
+        product_id="stable-api",
+        endpoints=[Endpoint(url="http://localhost:9997", name="api")],
+    )
+
+    # 6 green → dormant
+    for i in range(6):
+        report = AuditReport(product_id="stable-api", product_name="Stable API", overall_status="green")
+        report.checks = [CheckResult(name="endpoint:api", passed=True, message="OK", severity="info")]
+        reflector.ingest(config, report)
+    r = reflector.reflect()
+    assert reflector.get_profile("stable-api").state == POAState.DORMANT
+
+    # 1 yellow → WATCH
+    report_blip = AuditReport(product_id="stable-api", product_name="Stable API", overall_status="yellow")
+    report_blip.checks = [
+        CheckResult(name="endpoint:api", passed=True, message="OK", severity="info"),
+        CheckResult(name="disk:root", passed=False, message="87%", severity="warn"),
+    ]
+    reflector.ingest(config, report_blip)
+    r = reflector.reflect()
+    assert reflector.get_profile("stable-api").state == POAState.WATCH
+
+    # 3 more green → back to DORMANT
+    for i in range(3):
+        report = AuditReport(product_id="stable-api", product_name="Stable API", overall_status="green")
+        report.checks = [CheckResult(name="endpoint:api", passed=True, message="OK", severity="info")]
+        reflector.ingest(config, report)
+    r = reflector.reflect()
+    assert reflector.get_profile("stable-api").state == POAState.DORMANT
+
+    # Verify state changes were recorded
+    total_changes = sum(len(x.state_changes) for x in [r])
+    assert total_changes >= 1  # at least the WATCH→DORMANT change
+
+
+async def test_reflector_render():
+    """Test that render() produces non-empty output with proper sections."""
+    from singularity.immune.health import HealthTracker
+    from singularity.immune.auditor import Auditor
+    from singularity.immune.feedback import FeedbackBridge
+    from singularity.immune.reflector import Reflector
+    from singularity.poa.runtime import AuditReport, CheckResult
+    from singularity.poa.manager import POAConfig, Endpoint
+
+    tracker = HealthTracker()
+    auditor = Auditor()
+    bridge = FeedbackBridge(tracker=tracker, auditor=auditor)
+    reflector = Reflector(bridge=bridge)
+
+    # One green product
+    config = POAConfig(
+        product_name="Test Product",
+        product_id="test-prod",
+        endpoints=[Endpoint(url="http://localhost:1234", name="api")],
+    )
+    report = AuditReport(product_id="test-prod", product_name="Test Product", overall_status="green")
+    report.checks = [CheckResult(name="endpoint:api", passed=True, message="OK", severity="info")]
+    reflector.ingest(config, report)
+
+    result = reflector.reflect()
+    rendered = result.render()
+
+    assert "SINGULARITY" in rendered
+    assert "Reflected Audit" in rendered
+    assert "❤️" in rendered
+    assert len(rendered) > 100
+
+
 # ══════════════════════════════════════════════════════════════
 # AUDITOR TESTS
 # ══════════════════════════════════════════════════════════════
@@ -1022,6 +1183,9 @@ async def main():
         ("immune.vitals", test_vitals),
         ("immune.feedback_bridge", test_feedback_bridge),
         ("immune.feedback_damage_cap", test_feedback_damage_cap),
+        ("immune.reflector_classify", test_reflector_classification),
+        ("immune.reflector_blip", test_reflector_dormant_blip),
+        ("immune.reflector_render", test_reflector_render),
         
         # Auditor
         ("auditor.scanner", test_auditor_scanner),
