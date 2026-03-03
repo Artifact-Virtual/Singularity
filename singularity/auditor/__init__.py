@@ -6,12 +6,12 @@ First-boot capability: scan workspace, assess maturity,
 recommend executives and POAs.
 
 Usage:
-    from aria.auditor import WorkspaceScanner, scan_workspace
+    from singularity.auditor import WorkspaceScanner, scan_workspace
 
     scanner = WorkspaceScanner("/path/to/workspace")
     result = scanner.scan()  # Returns ScanResult
 
-    from aria.auditor import WorkspaceAnalyzer
+    from singularity.auditor import WorkspaceAnalyzer
     analysis = WorkspaceAnalyzer().analyze(result)
 """
 

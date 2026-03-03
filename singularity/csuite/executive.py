@@ -6,14 +6,14 @@ An Executive wraps an AgentLoop with role-specific permissions,
 scoped tools, memory partitions, and reporting format.
 
 Each executive is a self-contained agent that:
-    1. Receives tasks from the Coordinator (Aria)
+    1. Receives tasks from the Coordinator (Singularity)
     2. Runs its own think/act/observe loop
     3. Produces structured reports
     4. Emits events back through the bus
     5. Stays within its permission boundaries
 
 Executives don't know about each other. They don't coordinate directly.
-Aria handles all cross-executive orchestration.
+Singularity handles all cross-executive orchestration.
 """
 
 from __future__ import annotations

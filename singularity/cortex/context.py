@@ -171,7 +171,7 @@ def build_system_prompt(
 ) -> str:
     """Build a complete system prompt from components.
     
-    This is where Aria's personality gets injected.
+    This is where the persona's personality gets injected.
     """
     parts = []
     

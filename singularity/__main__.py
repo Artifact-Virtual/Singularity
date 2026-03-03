@@ -3,9 +3,9 @@ SINGULARITY — Entry Point
 ============================
 
 Usage:
-    python3 -m aria                  # Start the runtime
-    python3 -m aria --test           # Run skeleton test
-    python3 -m aria --config PATH    # Use custom config
+    python3 -m singularity              # Start the runtime
+    python3 -m singularity --test       # Run gate tests
+    python3 -m singularity --config PATH  # Use custom config
 """
 
 import asyncio
@@ -24,7 +24,7 @@ async def test_skeleton():
     results = []
     
     # ── Test 1: Event Bus ──────────────────────────────────────────
-    print("\n[1/5] Event Bus...")
+    print("\n[1/18] Event Bus...")
     try:
         bus = EventBus()
         await bus.start()
@@ -102,7 +102,7 @@ async def test_skeleton():
         print(f"   ❌ FAIL — {e}")
     
     # ── Test 2: Config ─────────────────────────────────────────────
-    print("\n[2/5] Config (SPINE)...")
+    print("\n[2/18] Config (SPINE)...")
     try:
         from .config import SingularityConfig, load_config
         
@@ -132,7 +132,7 @@ async def test_skeleton():
         print(f"   ❌ FAIL — {e}")
     
     # ── Test 3: MEMORY Sessions ────────────────────────────────────
-    print("\n[3/5] MEMORY Sessions...")
+    print("\n[3/18] MEMORY Sessions...")
     try:
         import tempfile, os
         from .memory.sessions import SessionStore, Message
@@ -194,7 +194,7 @@ async def test_skeleton():
         print(f"   ❌ FAIL — {e}")
     
     # ── Test 4: MEMORY COMB ────────────────────────────────────────
-    print("\n[4/5] MEMORY COMB...")
+    print("\n[4/18] MEMORY COMB...")
     try:
         import tempfile
         from .memory.comb import CombMemory
@@ -224,7 +224,7 @@ async def test_skeleton():
         print(f"   ❌ FAIL — {e}")
     
     # ── Test 5: SINEW Tools ────────────────────────────────────────
-    print("\n[5/5] SINEW Tools...")
+    print("\n[5/18] SINEW Tools...")
     try:
         from .sinew.executor import ToolExecutor
         from .sinew.sandbox import validate_command, validate_path
@@ -267,7 +267,7 @@ async def test_skeleton():
         print(f"   ❌ FAIL — {e}")
     
     # ── Test 6: VOICE Provider Abstraction ──────────────────────
-    print("\n[6/9] VOICE Provider Abstraction...")
+    print("\n[6/18] VOICE Provider Abstraction...")
     try:
         from .voice.provider import ChatProvider, ChatMessage, ChatResponse, StreamChunk
         from .voice.chain import ProviderChain
@@ -328,7 +328,7 @@ async def test_skeleton():
         print(f"   ❌ FAIL — {e}")
     
     # ── Test 7: CORTEX Context Assembly ────────────────────────────
-    print("\n[7/9] CORTEX Context Assembly...")
+    print("\n[7/18] CORTEX Context Assembly...")
     try:
         from .cortex.context import ContextAssembler, build_system_prompt
         from .voice.provider import ChatMessage
@@ -387,7 +387,7 @@ async def test_skeleton():
         print(f"   ❌ FAIL — {e}")
     
     # ── Test 8: CORTEX Agent Loop (structural) ─────────────────────
-    print("\n[8/9] CORTEX Agent Loop (structural)...")
+    print("\n[8/18] CORTEX Agent Loop (structural)...")
     try:
         from .cortex.agent import AgentLoop, AgentConfig, TurnResult
         
@@ -436,8 +436,87 @@ async def test_skeleton():
         results.append(("CORTEX Agent Loop", "FAIL", str(e)))
         print(f"   ❌ FAIL — {e}")
     
-    # ── Test 9: Integration (Bus → Voice → Cortex wiring) ─────────
-    print("\n[9/9] Integration wiring...")
+    # ── Test 9: BLINK — Seamless Continuation ─────────────────────
+    print("\n[9/18] BLINK — Seamless Continuation...")
+    try:
+        from .cortex.blink import (
+            BlinkController, BlinkConfig, BlinkState, BlinkPhase,
+            BLINK_PREPARE_MESSAGE, BLINK_RESUME_MESSAGE
+        )
+        
+        # Test config defaults
+        cfg = BlinkConfig()
+        assert cfg.enabled
+        assert cfg.max_depth == 5
+        assert cfg.prepare_at == 3
+        assert cfg.cooldown_seconds == 1.0
+        
+        # Test controller lifecycle
+        ctrl = BlinkController(config=cfg, session_id="test-blink-001")
+        assert ctrl.should_continue()  # depth 0 < max 5
+        assert ctrl.state.phase == BlinkPhase.NORMAL
+        assert ctrl.state.depth == 0
+        
+        # Normal completion — no blink needed
+        assert not ctrl.needs_blink("stop")
+        assert not ctrl.needs_blink("error")
+        
+        # Budget exceeded — blink needed
+        assert ctrl.needs_blink("budget_exceeded")
+        
+        # Prepare message injection
+        assert ctrl.should_prepare(3)   # at boundary
+        assert ctrl.should_prepare(2)   # within boundary
+        assert not ctrl.should_prepare(5)  # too early
+        
+        prep = ctrl.get_prepare_message()
+        assert "BLINK APPROACHING" in prep
+        assert not ctrl.should_prepare(2)  # already prepared
+        
+        # Record a blink
+        ctrl.record_blink(iterations=20, tool_calls=15)
+        assert ctrl.state.depth == 1
+        assert ctrl.state.total_iterations == 20
+        assert ctrl.state.total_tool_calls == 15
+        assert ctrl.state.phase == BlinkPhase.BLINKING
+        assert ctrl.should_continue()  # depth 1 < max 5
+        
+        # Resume
+        resume = ctrl.get_resume_message()
+        assert "BLINK COMPLETE" in resume
+        assert "1/5" in resume  # depth/max
+        ctrl.record_resume()
+        assert ctrl.state.phase == BlinkPhase.RESUMED
+        
+        # Prepare flag resets after blink
+        assert ctrl.should_prepare(3)  # can prepare again
+        
+        # Exhaust depth
+        for i in range(4):  # blinks 2-5
+            ctrl.record_blink(iterations=20, tool_calls=10)
+        assert ctrl.state.depth == 5
+        assert not ctrl.should_continue()  # capped
+        assert not ctrl.needs_blink("budget_exceeded")  # capped
+        assert ctrl.state.phase == BlinkPhase.CAPPED
+        
+        # Total tracking
+        assert ctrl.state.total_iterations == 100  # 5 × 20
+        assert ctrl.state.total_tool_calls == 55   # 15 + 4×10
+        
+        # Disabled controller
+        disabled = BlinkController(config=BlinkConfig(enabled=False), session_id="test-disabled")
+        assert disabled.should_continue()  # first run allowed
+        assert not disabled.needs_blink("budget_exceeded")  # won't blink
+        
+        results.append(("BLINK", "PASS", "lifecycle, depth cap, prepare/resume, disable"))
+        print("   ✅ PASS — BlinkController lifecycle, depth tracking, prepare/resume messages")
+        
+    except Exception as e:
+        results.append(("BLINK", "FAIL", str(e)))
+        print(f"   ❌ FAIL — {e}")
+    
+    # ── Test 10: Integration (Bus → Voice → Cortex wiring) ────────
+    print("\n[10/18] Integration wiring...")
     try:
         from .voice.chain import ProviderChain
         from .voice.proxy import CopilotProxyProvider
@@ -495,7 +574,7 @@ async def test_skeleton():
     # ═══════════════════════════════════════════════════════════════
     
     # ── Test 10: NERVE Types & Health Tracking ─────────────────────
-    print("\n[10/13] NERVE Types & Health Tracking...")
+    print("\n[11/18] NERVE Types & Health Tracking...")
     try:
         from .nerve.types import (
             BusEnvelope as NerveBusEnvelope,
@@ -556,7 +635,7 @@ async def test_skeleton():
         print(f"   ❌ FAIL — {e}")
     
     # ── Test 11: NERVE Formatter ───────────────────────────────────
-    print("\n[11/13] NERVE Formatter...")
+    print("\n[12/18] NERVE Formatter...")
     try:
         from .nerve.formatter import format_for_channel, split_on_boundaries
         from .nerve.types import ChannelCapabilities, FormattingDialect
@@ -599,7 +678,7 @@ async def test_skeleton():
         print(f"   ❌ FAIL — {e}")
     
     # ── Test 12: NERVE Router (Policy + Routing) ───────────────────
-    print("\n[12/13] NERVE Router...")
+    print("\n[13/18] NERVE Router...")
     try:
         from .nerve.router import InboundRouter
         from .nerve.types import (
@@ -707,7 +786,7 @@ async def test_skeleton():
         print(f"   ❌ FAIL — {e}")
     
     # ── Test 13: NERVE Adapter Base ────────────────────────────────
-    print("\n[13/13] NERVE Adapter Base...")
+    print("\n[14/18] NERVE Adapter Base...")
     try:
         from .nerve.adapter import BaseAdapter, TokenBucketLimiter
         from .nerve.types import (
@@ -795,7 +874,7 @@ async def test_skeleton():
     # ═══════════════════════════════════════════════════════════════
     
     # ── Test 14: Iteration Budget ──────────────────────────────────
-    print("\n[14/17] Iteration Budget...")
+    print("\n[15/18] Iteration Budget...")
     try:
         from .pulse.budget import IterationBudget, BudgetConfig, BudgetState
         
@@ -862,7 +941,7 @@ async def test_skeleton():
         print(f"   ❌ FAIL — {e}")
     
     # ── Test 15: Scheduler ─────────────────────────────────────────
-    print("\n[15/17] Scheduler...")
+    print("\n[16/18] Scheduler...")
     try:
         from .pulse.scheduler import Scheduler, JobConfig, JobType, JobState
         
@@ -951,7 +1030,7 @@ async def test_skeleton():
         print(f"   ❌ FAIL — {e}")
     
     # ── Test 16: Health Monitor ────────────────────────────────────
-    print("\n[16/17] Health Monitor...")
+    print("\n[17/18] Health Monitor...")
     try:
         from .pulse.health import HealthMonitor, HealthLevel
         
@@ -1041,7 +1120,7 @@ async def test_skeleton():
         print(f"   ❌ FAIL — {e}")
     
     # ── Test 17: PULSE Integration (Budget + Bus Events) ───────────
-    print("\n[17/17] PULSE Integration...")
+    print("\n[18/18] PULSE Integration...")
     try:
         from .pulse.budget import IterationBudget, BudgetConfig, BudgetState
         
@@ -1162,7 +1241,7 @@ def main():
         sys.exit(0 if success else 1)
     
     elif "--run" in args or len(args) == 0:
-        # Production mode — boot and run Aria
+        # Production mode — boot and run Singularity
         config_path = None
         for i, arg in enumerate(args):
             if arg == "--config" and i + 1 < len(args):
@@ -1189,9 +1268,9 @@ def main():
         print("SINGULARITY [AE] — Autonomous Enterprise Runtime")
         print()
         print("Usage:")
-        print("  python3 -m aria              # Start Aria")
-        print("  python3 -m aria --test       # Run gate tests")
-        print("  python3 -m aria --config X   # Use custom config")
+        print("  python3 -m singularity              # Start Singularity")
+        print("  python3 -m singularity --test       # Run gate tests")
+        print("  python3 -m singularity --config X   # Use custom config")
 
 
 if __name__ == "__main__":

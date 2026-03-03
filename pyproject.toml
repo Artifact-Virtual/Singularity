@@ -30,7 +30,7 @@ Homepage = "https://artifactvirtual.com"
 Repository = "https://github.com/Artifact-Virtual/singularity"
 
 [project.scripts]
-singularity = "aria.cli.main:main"
+singularity = "singularity.cli.main:main"
 
 [tool.setuptools.packages.find]
-include = ["aria*"]
+include = ["singularity*"]

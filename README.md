@@ -72,7 +72,7 @@ Everything is **approval-gated**. Singularity proposes. You decide.
 
 ```
 singularity/
-├── aria/                        # Runtime package
+├── singularity/                        # Runtime package
 │   ├── bus.py                   # Event bus — the nervous system
 │   ├── config.py                # SPINE — hot-reload configuration
 │   ├── runtime.py               # Boot sequence + main loop
@@ -175,10 +175,10 @@ cp config/singularity.example.yaml config/singularity.yaml
 # Edit both files with your values
 
 # Initialize (interactive wizard)
-python3 -m aria.cli.main init
+python3 -m singularity.cli.main init
 
 # Or specify everything upfront
-python3 -m aria.cli.main init --workspace /path/to/code --industry fintech --non-interactive
+python3 -m singularity.cli.main init --workspace /path/to/code --industry fintech --non-interactive
 ```
 
 The init wizard:
@@ -266,7 +266,7 @@ Executives are **ephemeral, scoped agent instances**. Each one:
 
 ```bash
 # Propose a new executive
-python3 -m aria.cli.main spawn-exec cto
+python3 -m singularity.cli.main spawn-exec cto
 
 # Output:
 #   📋 Title:    Chief Technology Officer
@@ -276,7 +276,7 @@ python3 -m aria.cli.main spawn-exec cto
 #
 #   Approve? [y/n]
 
-python3 -m aria.cli.main spawn-exec cto --approve    # Create it
+python3 -m singularity.cli.main spawn-exec cto --approve    # Create it
 ```
 
 ---
@@ -297,13 +297,13 @@ POAs are **persistent monitors** for live products. Each POA runs on a cron sche
 
 ```bash
 # Create a POA
-python3 -m aria.cli.main poa create "My API" --endpoint https://api.example.com/health --approve
+python3 -m singularity.cli.main poa create "My API" --endpoint https://api.example.com/health --approve
 
 # Run immediate audit
-python3 -m aria.cli.main poa audit my-api
+python3 -m singularity.cli.main poa audit my-api
 
 # List all POAs
-python3 -m aria.cli.main poa list
+python3 -m singularity.cli.main poa list
 ```
 
 Audits produce structured JSON + Markdown reports saved to `.singularity/audits/`.
@@ -313,7 +313,7 @@ Audits produce structured JSON + Markdown reports saved to `.singularity/audits/
 ## CLI Reference
 
 ```
-python3 -m aria.cli.main <command> [options]
+python3 -m singularity.cli.main <command> [options]
 
 Commands:
   init          Initialize workspace (interactive wizard)

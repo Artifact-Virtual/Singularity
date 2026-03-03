@@ -34,6 +34,9 @@ COPILOT_TOKEN_URL = "https://api.github.com/copilot_internal/v2/token"
 DEFAULT_BASE_URL = "https://api.individual.githubcopilot.com"
 TOKEN_CACHE_PATH = Path.home() / ".mach6" / "credentials" / "github-copilot.token.json"
 
+# Also check Mach6's cache (shared machine, same token)
+MACH6_TOKEN_CACHE = Path.home() / ".mach6" / "credentials" / "github-copilot.token.json"
+
 # Copilot headers that identify us as a VS Code Copilot client
 COPILOT_HEADERS = {
     "Editor-Version": "vscode/1.96.2",
@@ -46,14 +49,19 @@ COPILOT_HEADERS = {
 class CopilotProxyProvider(ChatProvider):
     """GitHub Copilot as an OpenAI-compatible LLM provider.
     
-    Uses Copilot token exchange for auth, streams via SSE.
-    Supports tool calling via OpenAI function format.
+    Two modes:
+    1. Proxy mode (default): Uses a running Mach6 gateway's Copilot proxy at localhost:3000
+    2. Direct mode: Does its own PAT → Copilot token exchange (requires OAuth token, not classic PAT)
+    
+    Proxy mode is preferred when running alongside Mach6 on the same machine.
     """
     
-    def __init__(self, model: str = "claude-sonnet-4", **kwargs):
+    def __init__(self, model: str = "claude-sonnet-4", endpoint: str = None, **kwargs):
         super().__init__(name="copilot-proxy", model=model, **kwargs)
         self._cached_token: Optional[dict] = None  # {token, expires_at, updated_at}
         self._session: Optional[aiohttp.ClientSession] = None
+        # If endpoint provided, use proxy mode (Mach6 gateway handles auth)
+        self._proxy_endpoint: Optional[str] = endpoint
         self._base_url: str = DEFAULT_BASE_URL
     
     async def initialize(self) -> None:
@@ -121,13 +129,17 @@ class CopilotProxyProvider(ChatProvider):
     
     def _load_cached_token(self) -> Optional[dict]:
         """Load cached copilot token from disk."""
-        try:
-            if TOKEN_CACHE_PATH.exists():
-                data = json.loads(TOKEN_CACHE_PATH.read_text())
-                if data.get("token") and data.get("expires_at"):
-                    return data
-        except Exception:
-            pass
+        for cache_path in [TOKEN_CACHE_PATH, MACH6_TOKEN_CACHE]:
+            try:
+                if cache_path.exists():
+                    data = json.loads(cache_path.read_text())
+                    token = data.get("token")
+                    # Handle both camelCase (Mach6) and snake_case field names
+                    expires_at = data.get("expires_at") or data.get("expiresAt")
+                    if token and expires_at:
+                        return {"token": token, "expires_at": expires_at}
+            except Exception:
+                pass
         return None
     
     def _save_cached_token(self, token_data: dict) -> None:
@@ -214,6 +226,16 @@ class CopilotProxyProvider(ChatProvider):
         **kwargs,
     ) -> AsyncIterator[StreamChunk]:
         """Stream a chat completion via Copilot's OpenAI-compatible API."""
+        
+        # Proxy mode: use Mach6 gateway which handles its own Copilot auth
+        if self._proxy_endpoint:
+            async for chunk in self._stream_via_proxy(
+                messages, tools, temperature, max_tokens, **kwargs
+            ):
+                yield chunk
+            return
+        
+        # Direct mode: do our own token exchange
         attempts = 0
         while attempts < 2:
             try:
@@ -233,6 +255,113 @@ class CopilotProxyProvider(ChatProvider):
                     continue
                 self.record_failure(e)
                 raise
+    
+    async def _stream_via_proxy(
+        self,
+        messages: list[ChatMessage],
+        tools: Optional[list[dict]],
+        temperature: float,
+        max_tokens: int,
+        **kwargs,
+    ) -> AsyncIterator[StreamChunk]:
+        """Stream via the Mach6 Copilot proxy (localhost:3000).
+        
+        Mach6 handles all token exchange internally.
+        We just send OpenAI-compatible requests to it.
+        """
+        await self.initialize()
+        
+        body: dict = {
+            "model": self.model,
+            "stream": True,
+            "stream_options": {"include_usage": True},
+            "messages": [m.to_dict() for m in messages],
+        }
+        if max_tokens:
+            body["max_tokens"] = max_tokens
+        if temperature is not None:
+            body["temperature"] = temperature
+        if tools:
+            body["tools"] = tools
+        
+        endpoint = f"{self._proxy_endpoint.rstrip('/')}/chat/completions"
+        
+        headers = {
+            "Content-Type": "application/json",
+            **COPILOT_HEADERS,
+        }
+        
+        try:
+            async with self._session.post(
+                endpoint, json=body, headers=headers,
+            ) as resp:
+                if resp.status != 200:
+                    text = await resp.text()
+                    raise RuntimeError(f"Proxy API error {resp.status}: {text}")
+                
+                buffer = ""
+                async for raw_bytes in resp.content.iter_any():
+                    buffer += raw_bytes.decode("utf-8", errors="replace")
+                    
+                    lines = buffer.split("\n")
+                    buffer = lines.pop()
+                    
+                    for line in lines:
+                        if not line.startswith("data: "):
+                            continue
+                        data = line[6:].strip()
+                        
+                        if data == "[DONE]":
+                            return
+                        
+                        try:
+                            parsed = json.loads(data)
+                        except json.JSONDecodeError:
+                            continue
+                        
+                        usage = parsed.get("usage")
+                        if usage and usage.get("total_tokens"):
+                            yield StreamChunk(
+                                usage={
+                                    "input_tokens": usage.get("prompt_tokens", 0),
+                                    "output_tokens": usage.get("completion_tokens", 0),
+                                }
+                            )
+                        
+                        choices = parsed.get("choices", [])
+                        if not choices:
+                            continue
+                        
+                        choice = choices[0]
+                        delta = choice.get("delta", {})
+                        
+                        if delta.get("content"):
+                            yield StreamChunk(delta=delta["content"])
+                        
+                        tc_list = delta.get("tool_calls", [])
+                        for tc in tc_list:
+                            idx = tc.get("index", 0)
+                            fn = tc.get("function", {})
+                            yield StreamChunk(tool_call_delta={
+                                "index": idx,
+                                "id": tc.get("id", ""),
+                                "function": {
+                                    "name": fn.get("name", ""),
+                                    "arguments": fn.get("arguments", ""),
+                                },
+                            })
+                        
+                        finish = choice.get("finish_reason")
+                        if finish:
+                            reason = "stop" if finish == "stop" else (
+                                "tool_calls" if finish == "tool_calls" else finish
+                            )
+                            yield StreamChunk(finish_reason=reason)
+            
+            self.record_success()
+        except Exception as e:
+            self.record_failure(e)
+            raise
     
     async def _stream_openai(
         self,
@@ -347,9 +476,19 @@ class CopilotProxyProvider(ChatProvider):
     # ── Health Check ──────────────────────────────────────────────
     
     async def health(self) -> bool:
-        """Check if we can get a valid copilot token."""
+        """Check if we can reach the LLM backend."""
         try:
-            await self._resolve_copilot_token()
-            return True
+            if self._proxy_endpoint:
+                # Proxy mode: check if Mach6 gateway is responding
+                await self.initialize()
+                async with self._session.get(
+                    f"{self._proxy_endpoint.rstrip('/')}/models",
+                    timeout=aiohttp.ClientTimeout(total=5),
+                ) as resp:
+                    return resp.status == 200
+            else:
+                # Direct mode: check if we have a valid copilot token
+                await self._resolve_copilot_token()
+                return True
         except Exception:
             return False

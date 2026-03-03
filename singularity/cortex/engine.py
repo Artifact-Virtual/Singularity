@@ -1,0 +1,317 @@
+"""
+CORTEX — Engine
+==================
+
+The bridge between messages and the agent loop.
+
+Responsibilities:
+    - Receive inbound messages from the NERVE router
+    - Manage session history (store/retrieve via MEMORY)
+    - Assemble context (system prompt + history + new message)
+    - Spawn an AgentLoop per turn
+    - **BLINK**: seamless continuation when budget exhausts
+    - Store results back to session
+    - Load persona identity files on first use
+
+This is the stateful layer. AgentLoop is stateless.
+BLINK makes the iteration wall invisible.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+import os
+from dataclasses import dataclass
+from typing import Any, Optional
+
+from .agent import AgentLoop, AgentConfig, TurnResult
+from .blink import BlinkController, BlinkConfig, BlinkPhase
+from .context import ContextAssembler, build_system_prompt
+from ..voice.provider import ChatMessage
+from ..voice.chain import ProviderChain
+from ..sinew.executor import ToolExecutor
+from ..memory.sessions import SessionStore, Message
+
+logger = logging.getLogger("singularity.cortex.engine")
+
+
+@dataclass
+class CortexConfig:
+    """Engine-level configuration."""
+    persona_name: str = "singularity"
+    persona_prompt: str = ""
+    identity_files: list[str] = None  # Paths to identity files to load
+    rules: str = ""
+    context_budget: int = 180_000
+    agent: AgentConfig = None
+    blink: BlinkConfig = None
+    
+    def __post_init__(self):
+        if self.identity_files is None:
+            self.identity_files = []
+        if self.agent is None:
+            self.agent = AgentConfig()
+        if self.blink is None:
+            self.blink = BlinkConfig()
+
+
+class CortexEngine:
+    """The thinking engine. Bridges messages → LLM → responses.
+    
+    One CortexEngine per runtime. It manages:
+    - System prompt (loaded once from identity files)
+    - Session history (via SessionManager) 
+    - Context assembly (per turn)
+    - AgentLoop spawning (one per turn)
+    - **BLINK** — seamless continuation across budget boundaries
+    
+    When an AgentLoop exhausts its iteration budget, BLINK kicks in:
+    1. Records the blink (depth tracking)
+    2. Injects a resume message into the session
+    3. Spawns a FRESH AgentLoop with full budget
+    4. The new loop picks up from session history — seamless
+    5. The user never sees "[Budget exhausted]"
+    
+    Max blink depth prevents infinite loops (default: 5).
+    Total theoretical capacity: 5 × expanded_cap = 500 iterations per turn.
+    """
+    
+    def __init__(
+        self,
+        voice: ProviderChain,
+        tools: ToolExecutor,
+        sessions: SessionStore,
+        config: CortexConfig,
+        bus: Any = None,
+        workspace: str = "",
+    ):
+        self.voice = voice
+        self.tools = tools
+        self.sessions = sessions
+        self.config = config
+        self.bus = bus
+        self.workspace = workspace
+        
+        self._system_prompt: str = ""
+        self._prompt_loaded = False
+        self._context = ContextAssembler(
+            context_budget=config.context_budget,
+        )
+    
+    async def boot(self) -> None:
+        """Load identity and prepare for processing."""
+        await self._load_system_prompt()
+        logger.info("CortexEngine ready (BLINK enabled: %s)", self.config.blink.enabled)
+    
+    async def process(
+        self,
+        session_id: str,
+        message: str,
+        source: Any = None,
+        sender_name: str = "",
+    ) -> TurnResult:
+        """Process an inbound message through the full agent loop.
+        
+        If BLINK is enabled, this method may spawn multiple sequential
+        agent loops to maintain seamless continuity. The user's experience
+        is one continuous conversation — the iteration boundary is invisible.
+        
+        Args:
+            session_id: Conversation session ID (maps to channel/DM)
+            message: The user's message text
+            source: ChannelSource metadata (for context)
+            sender_name: Display name of the sender
+        
+        Returns:
+            TurnResult with the response and metadata
+        """
+        if not self._prompt_loaded:
+            await self._load_system_prompt()
+        
+        # 1. Store the inbound message in session
+        user_msg = Message(role="user", content=message)
+        await self.sessions.add_message(session_id, user_msg)
+        
+        # 2. Create blink controller for this turn
+        blink = BlinkController(
+            config=self.config.blink,
+            bus=self.bus,
+            session_id=session_id,
+        )
+        
+        # 3. The blink loop — may run multiple agent cycles
+        final_result = None
+        accumulated_response = ""
+        
+        while blink.should_continue():
+            # Retrieve session history fresh each cycle
+            # (previous cycle's tool calls + results are in there)
+            history_msgs = await self.sessions.get_messages(session_id)
+            
+            # Convert to ChatMessages for the LLM
+            chat_history = [
+                ChatMessage(
+                    role=m.role,
+                    content=m.content or "",
+                    tool_calls=m.tool_calls,
+                    tool_call_id=m.tool_call_id,
+                    name=m.name,
+                )
+                for m in history_msgs
+            ]
+            
+            # If this is a blink resume, inject the resume context
+            if blink.state.depth > 0:
+                resume_msg = ChatMessage(
+                    role="user",
+                    content=blink.get_resume_message(),
+                )
+                chat_history.append(resume_msg)
+                blink.record_resume()
+            
+            # Assemble context (system prompt + history)
+            messages = self._context.assemble(
+                system_prompt=self._system_prompt,
+                history=chat_history[:-1] if blink.state.depth == 0 else chat_history,
+                new_message=chat_history[-1] if blink.state.depth == 0 else None,
+            )
+            
+            # Spawn a fresh AgentLoop with blink awareness
+            loop = AgentLoop(
+                voice=self.voice,
+                tools=self.tools,
+                config=self.config.agent,
+                bus=self.bus,
+                blink=blink,
+            )
+            
+            # Run the loop
+            result = await loop.run(messages)
+            
+            # Accumulate response text
+            if result.response:
+                accumulated_response += result.response
+            
+            # Check if we need to blink
+            if blink.needs_blink(result.finish_reason):
+                # Record the blink
+                blink.record_blink(result.iterations, result.tool_calls_total)
+                
+                # Store any partial tool call history in session
+                # (The agent loop's messages already include tool calls/results,
+                #  but the final response was empty — store a checkpoint note)
+                checkpoint_msg = Message(
+                    role="assistant",
+                    content=f"[blink #{blink.state.depth} — continuing seamlessly]",
+                )
+                await self.sessions.add_message(session_id, checkpoint_msg)
+                
+                # Brief cooldown to prevent tight-looping
+                await asyncio.sleep(self.config.blink.cooldown_seconds)
+                
+                logger.info(
+                    f"BLINK #{blink.state.depth} for session {session_id[:12]}... "
+                    f"— spawning fresh agent loop"
+                )
+                
+                # Loop continues → fresh AgentLoop with full budget
+                continue
+            
+            # Normal completion — done
+            blink.record_complete(result.iterations, result.tool_calls_total)
+            final_result = result
+            break
+        
+        # If we exhausted blink depth without a final result
+        if final_result is None:
+            logger.warning(
+                f"Blink depth exhausted for session {session_id[:12]}... "
+                f"after {blink.state.total_iterations} total iterations"
+            )
+            final_result = TurnResult(
+                response=accumulated_response or "[Session paused — maximum depth reached]",
+                iterations=blink.state.total_iterations,
+                tool_calls_total=blink.state.total_tool_calls,
+                finish_reason="blink_capped",
+            )
+        else:
+            # Use accumulated response if the final cycle had empty response
+            if not final_result.response and accumulated_response:
+                final_result.response = accumulated_response
+            # Update totals to include all blink cycles
+            final_result.iterations = blink.state.total_iterations
+            final_result.tool_calls_total = blink.state.total_tool_calls
+        
+        # 4. Store assistant response in session
+        if final_result.response:
+            assistant_msg = Message(
+                role="assistant",
+                content=final_result.response,
+            )
+            await self.sessions.add_message(session_id, assistant_msg)
+        
+        blink_info = ""
+        if blink.state.depth > 0:
+            blink_info = f" blinks={blink.state.depth}"
+        
+        logger.info(
+            f"Turn complete: session={session_id[:12]}... "
+            f"iterations={final_result.iterations} tools={final_result.tool_calls_total} "
+            f"tokens={final_result.total_tokens}{blink_info} "
+            f"latency={final_result.latency_ms:.0f}ms "
+            f"provider={final_result.provider}"
+        )
+        
+        return final_result
+    
+    async def _load_system_prompt(self) -> None:
+        """Load system prompt from identity files + config."""
+        persona_prompt = self.config.persona_prompt
+        
+        # Load identity files if specified
+        identity_content = []
+        for fpath in self.config.identity_files:
+            full_path = fpath
+            if not os.path.isabs(fpath) and self.workspace:
+                full_path = os.path.join(self.workspace, fpath)
+            
+            try:
+                with open(full_path, "r") as f:
+                    content = f.read()
+                identity_content.append(content)
+                logger.debug(f"Loaded identity file: {fpath}")
+            except FileNotFoundError:
+                logger.warning(f"Identity file not found: {fpath}")
+            except Exception as e:
+                logger.warning(f"Error loading identity file {fpath}: {e}")
+        
+        if identity_content:
+            persona_prompt = "\n\n---\n\n".join(
+                [persona_prompt] + identity_content
+                if persona_prompt else identity_content
+            )
+        
+        # Load COMB context
+        comb_context = ""
+        try:
+            from ..memory.comb import COMBStore
+            comb = COMBStore(self.workspace)
+            comb_context = await comb.recall()
+            if comb_context:
+                logger.debug(f"COMB recall: {len(comb_context)} chars")
+        except Exception as e:
+            logger.debug(f"COMB recall skipped: {e}")
+        
+        self._system_prompt = build_system_prompt(
+            persona_name=self.config.persona_name,
+            persona_prompt=persona_prompt,
+            rules=self.config.rules,
+            comb_context=comb_context,
+        )
+        
+        self._prompt_loaded = True
+        logger.info(
+            f"System prompt loaded: {len(self._system_prompt)} chars "
+            f"({len(self.config.identity_files)} identity files)"
+        )

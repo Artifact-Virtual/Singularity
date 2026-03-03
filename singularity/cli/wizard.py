@@ -630,7 +630,7 @@ class InitWizard:
             "  Next steps:",
             "    singularity status       — Check runtime",
             "    singularity poa create X  — Add a product",
-            "    python3 -m aria           — Start Aria",
+            "    python3 -m singularity     — Start Singularity",
         ], color=fmt.BR_GREEN))
         print()
 

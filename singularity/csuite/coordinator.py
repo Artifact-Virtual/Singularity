@@ -1,8 +1,8 @@
 """
-CSUITE — Coordinator (Aria's Brain for C-Suite)
+CSUITE — Coordinator (Singularity's Brain for C-Suite)
 ===================================================
 
-The Coordinator IS Aria's dispatch logic, native to Singularity.
+The Coordinator IS the dispatch logic, native to Singularity.
 
 It handles:
     1. Task routing — match tasks to executives by keyword/domain
@@ -96,7 +96,7 @@ class StandingOrder:
 
 class Coordinator:
     """
-    Aria's dispatch engine.
+    Singularity's dispatch engine.
     
     Routes tasks, manages executives, aggregates results.
     Runs on the event bus — no direct channel dependencies.

@@ -34,6 +34,7 @@ from ..voice.provider import ChatMessage, ChatResponse
 from ..voice.chain import ProviderChain
 from ..sinew.executor import ToolExecutor
 from ..sinew.definitions import TOOL_DEFINITIONS
+from .blink import BlinkController
 
 logger = logging.getLogger("singularity.cortex.agent")
 
@@ -70,6 +71,10 @@ class AgentLoop:
     One AgentLoop per conversation turn. Created fresh each time
     a message comes in, runs until the LLM produces a final response
     or the iteration budget is exhausted.
+    
+    If a BlinkController is attached, the loop will inject a preparation
+    message near the budget boundary instead of dying. The controller
+    tracks whether a blink is needed so the engine can spawn a fresh loop.
     """
     
     def __init__(
@@ -78,11 +83,13 @@ class AgentLoop:
         tools: ToolExecutor,
         config: AgentConfig,
         bus: Any = None,
+        blink: BlinkController | None = None,
     ):
         self.voice = voice
         self.tools = tools
         self.config = config
         self.bus = bus
+        self.blink = blink
         
         self._iteration = 0
         self._max_iterations = config.max_iterations
@@ -124,6 +131,21 @@ class AgentLoop:
                         }, source="cortex")
                 
                 # ── THINK: Send to LLM ───────────────────────────
+                
+                # ── BLINK: Inject preparation if approaching boundary ──
+                if self.blink:
+                    remaining_after = self._max_iterations - self._iteration
+                    if self.blink.should_prepare(remaining_after):
+                        prep_msg = self.blink.get_prepare_message()
+                        messages.append(ChatMessage(
+                            role="user",
+                            content=prep_msg,
+                        ))
+                        logger.info(
+                            f"[{self._turn_id}] BLINK prepare injected "
+                            f"({remaining_after} iterations remaining)"
+                        )
+                
                 if self.bus:
                     await self.bus.emit_nowait("cortex.iteration.start", {
                         "turn_id": self._turn_id,
@@ -193,7 +215,7 @@ class AgentLoop:
                         name=tc["function"]["name"],
                     ))
             
-            # Budget exhausted
+            # Budget exhausted — but BLINK may save us
             latency = (time.perf_counter() - t0) * 1000
             logger.warning(
                 f"[{self._turn_id}] Budget exhausted at {self._iteration} iterations"
@@ -204,10 +226,13 @@ class AgentLoop:
                     "turn_id": self._turn_id,
                     "iterations": self._iteration,
                     "tool_calls": self._tool_calls_total,
+                    "blink_eligible": self.blink is not None and self.blink.should_continue(),
                 }, source="cortex")
             
+            # If blink controller exists, don't show the wall —
+            # return with budget_exceeded so the engine can blink
             return TurnResult(
-                response="[Budget exhausted — iteration limit reached]",
+                response="",  # No dead-wall message — blink handles it
                 iterations=self._iteration,
                 tool_calls_total=self._tool_calls_total,
                 total_tokens=self._total_tokens,

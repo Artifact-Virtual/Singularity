@@ -1,5 +1,5 @@
 """
-SINGULARITY Runtime — Aria Lives
+SINGULARITY Runtime — The Runtime Lives
 ===================================
 
 The runtime orchestrator. Boots all subsystems, wires them
@@ -38,7 +38,7 @@ logger = logging.getLogger("singularity.runtime")
 
 class Runtime:
     """
-    The Singularity runtime — Aria's nervous system.
+    The Singularity runtime — the autonomous enterprise nervous system.
     
     Boots all subsystems, wires the event bus, and runs
     the main event loop.
@@ -58,7 +58,7 @@ class Runtime:
         self.comb = None         # MEMORY COMB
         self.tools = None        # SINEW executor
         self.voice = None        # VOICE provider chain
-        self.cortex = None       # CORTEX agent loop
+        self.cortex = None       # CORTEX engine
         self.scheduler = None    # PULSE scheduler
         self.health = None       # PULSE health monitor
         self.watchdog = None     # IMMUNE watchdog
@@ -136,7 +136,7 @@ class Runtime:
         
         elapsed = time.monotonic() - self._boot_time
         logger.info(f"Boot complete in {elapsed:.1f}s")
-        logger.info("Aria is alive. ⚡")
+        logger.info("Singularity is alive. ⚡")
         
         await self.bus.emit("runtime.booted", {
             "boot_time_seconds": elapsed,
@@ -198,27 +198,57 @@ class Runtime:
         logger.info(f"  VOICE ready ({len(providers)} providers in chain)")
     
     async def _boot_cortex(self) -> None:
-        """Initialize agent loop."""
-        from .cortex.agent import AgentLoop, AgentConfig
+        """Initialize the cortex engine."""
+        from .cortex.engine import CortexEngine, CortexConfig
+        from .cortex.agent import AgentConfig
+        from .cortex.blink import BlinkConfig as BlinkCfg
         
         vc = self.config.voice
         pc = self.config.pulse
+        bc = self.config.blink
+        
         agent_config = AgentConfig(
-            persona_name="aria",
+            persona_name=self.config.persona.name if hasattr(self.config, 'persona') else "singularity",
             max_iterations=pc.default_cap,
             expanded_iterations=pc.expanded_cap,
             expansion_threshold=pc.expand_threshold,
             temperature=vc.temperature,
             max_tokens=vc.max_tokens,
-            system_prompt="",  # Loaded from identity files at session time
         )
         
-        self.cortex = AgentLoop(
-            config=agent_config,
-            bus=self.bus,
+        blink_config = BlinkCfg(
+            enabled=bc.enabled,
+            max_depth=bc.max_depth,
+            prepare_at=bc.prepare_at,
+            flush_at=bc.flush_at,
+            cooldown_seconds=bc.cooldown_seconds,
+        )
+        
+        # Identity files to load into system prompt
+        workspace = self.config.tools.workspace
+        identity_files = []
+        for fname in ["IDENTITY_ARIA.md", "SOUL_ARIA.md", "AGENTS_ARIA.md", "USER_ARIA.md"]:
+            fpath = os.path.join(workspace, fname)
+            if os.path.exists(fpath):
+                identity_files.append(fpath)
+        
+        cortex_config = CortexConfig(
+            persona_name=agent_config.persona_name,
+            identity_files=identity_files,
+            context_budget=self.config.memory.max_context_tokens,
+            agent=agent_config,
+            blink=blink_config,
+        )
+        
+        self.cortex = CortexEngine(
             voice=self.voice,
             tools=self.tools,
+            sessions=self.sessions,
+            config=cortex_config,
+            bus=self.bus,
+            workspace=workspace,
         )
+        await self.cortex.boot()
         logger.info(f"  CORTEX ready (model: {vc.primary_model})")
     
     async def _boot_pulse(self) -> None:
@@ -285,11 +315,7 @@ class Runtime:
         if dc.token:
             from .nerve.discord import DiscordAdapter
             
-            adapter = DiscordAdapter(
-                adapter_id="discord-main",
-                self_user_id=dc.bot_user_id,
-                sibling_bot_ids=dc.sister_bot_ids,
-            )
+            adapter = DiscordAdapter(adapter_id="discord-main")
             
             # Wire adapter messages to router
             def on_message(envelope):
@@ -301,7 +327,12 @@ class Runtime:
             adapter.on_message(on_message)
             
             try:
-                await adapter.connect({"token": dc.token})
+                await adapter.connect({
+                    "token": dc.token,
+                    "bot_id": dc.bot_user_id,
+                    "sibling_bot_ids": dc.sister_bot_ids,
+                    "guild_ids": dc.guild_ids,
+                })
                 self.adapters["discord"] = adapter
                 logger.info("  Discord adapter connected")
             except Exception as e:
@@ -320,7 +351,7 @@ class Runtime:
             if not self.voice:
                 return HealthLevel.UNKNOWN, "Voice not initialized"
             # Check if any providers in chain are available
-            avail = sum(1 for p in self.voice.providers if p._available)
+            avail = sum(1 for p in self.voice.providers if p.available)
             total = len(self.voice.providers)
             if avail == 0:
                 return HealthLevel.UNHEALTHY, "No providers available"
@@ -364,15 +395,16 @@ class Runtime:
             if not envelope:
                 return
             
-            session_id = event.data.get("session_id", "default")
+            session_id = envelope.session_id or envelope.source.chat_id or "default"
             
-            # Process through agent loop
+            # Process through cortex engine
             if self.cortex:
                 try:
                     result = await self.cortex.process(
                         session_id=session_id,
                         message=envelope.payload.text or "",
                         source=envelope.source,
+                        sender_name=getattr(envelope.source, 'sender_name', ''),
                     )
                     
                     # Send response back through the channel

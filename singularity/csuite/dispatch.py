@@ -11,7 +11,7 @@ This module provides:
     - status()        — get C-Suite health snapshot
     - history()       — recent dispatch history
 
-All dispatches go through the Coordinator (Aria).
+All dispatches go through the Coordinator (Singularity).
 No webhooks. No Discord. Native event bus.
 """
 

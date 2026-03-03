@@ -172,7 +172,7 @@ def cmd_status(args):
         sys.exit(1)
     
     # Check for POAs
-    from aria.poa.manager import POAManager
+    from singularity.poa.manager import POAManager
     mgr = POAManager(sg_dir)
     poas = mgr.list_all()
     
@@ -211,7 +211,7 @@ def cmd_status(args):
 def cmd_spawn_exec(args):
     """Propose/create an executive agent."""
     from .formatters import header, info, success, warn
-    from aria.csuite.roles import RoleRegistry, RoleType
+    from singularity.csuite.roles import RoleRegistry, RoleType
     
     header("SINGULARITY [AE] — Executive Proposal")
     
@@ -255,8 +255,8 @@ def cmd_poa(args):
         print("❌ Not initialized. Run 'singularity init' first.")
         sys.exit(1)
     
-    from aria.poa.manager import POAManager, Endpoint
-    from aria.poa.runtime import POARuntime
+    from singularity.poa.manager import POAManager, Endpoint
+    from singularity.poa.runtime import POARuntime
     
     mgr = POAManager(sg_dir)
     
@@ -318,7 +318,7 @@ def cmd_poa(args):
 def cmd_scale_report(args):
     """Show scaling analysis."""
     from .formatters import header, info
-    from aria.csuite.roles import RoleRegistry
+    from singularity.csuite.roles import RoleRegistry
     
     header("SINGULARITY [AE] — Scale Report")
     workspace = os.path.abspath(args.workspace)
@@ -346,7 +346,7 @@ def cmd_scale_report(args):
 def cmd_health(args):
     """Health check."""
     from .formatters import header
-    from aria.immune.vitals import SystemVitals
+    from singularity.immune.vitals import SystemVitals
     
     header("SINGULARITY [AE] — Health")
     
@@ -403,7 +403,7 @@ def _run_audit(workspace: str, enterprise: str = "", industry: str = "", output_
     success(f"Audit saved: {out_path}")
     
     # Propose roles
-    from aria.csuite.roles import RoleRegistry
+    from singularity.csuite.roles import RoleRegistry
     reg = RoleRegistry(enterprise=enterprise, industry=industry)
     proposals = reg.propose_roles(audit_data)
     

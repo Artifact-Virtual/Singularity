@@ -347,7 +347,7 @@ singularity/
 ├── VISION.md              Architecture + philosophy
 ├── DEPENDENCIES.md         Dependency tree + tech decisions
 ├── AGENTS.md              This file — operating protocol
-├── aria/                   Runtime package (10K+ lines)
+├── singularity/                   Runtime package (10K+ lines)
 │   ├── bus.py             Event bus
 │   ├── config.py          SPINE
 │   ├── runtime.py         Main runtime loop

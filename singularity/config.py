@@ -112,6 +112,15 @@ class PulseConfig(BaseModel):
     revert_threshold: int = 10
 
 
+class BlinkConfig(BaseModel):
+    """BLINK seamless continuation configuration."""
+    enabled: bool = True
+    max_depth: int = 5          # Max consecutive blinks per conversation turn
+    prepare_at: int = 3         # Inject preparation message at N remaining iterations
+    flush_at: int = 1           # Force flush at N remaining
+    cooldown_seconds: float = 1.0  # Delay between blink and resume
+
+
 class ImmuneConfig(BaseModel):
     """IMMUNE health system configuration."""
     check_interval: float = 30.0
@@ -159,6 +168,7 @@ class SingularityConfig(BaseModel):
     memory: MemoryConfig = Field(default_factory=MemoryConfig)
     tools: ToolsConfig = Field(default_factory=ToolsConfig)
     pulse: PulseConfig = Field(default_factory=PulseConfig)
+    blink: BlinkConfig = Field(default_factory=BlinkConfig)
     immune: ImmuneConfig = Field(default_factory=ImmuneConfig)
     csuite: CSuiteConfig = Field(default_factory=CSuiteConfig)
     compaction: CompactionConfig = Field(default_factory=CompactionConfig)

@@ -90,3 +90,4 @@ aria/csuite/roles_v1.py
 .core/logs/
 .core/operations/comb-flush-security-audit.md
 .core/operations/comb-security-audit.md
+.core/

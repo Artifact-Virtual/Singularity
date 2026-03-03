@@ -2,7 +2,7 @@
 MEMORY — COMB Native Memory
 ==============================
 
-COMB isn't a library call bolted onto Aria.
+COMB isn't a library call bolted onto Singularity.
 COMB is her bloodstream. Every interaction persists.
 Every context window has history. She remembers.
 
@@ -109,7 +109,7 @@ class CombMemory:
     async def recall(self) -> str:
         """Recall staged content from previous session.
         
-        This is what makes Aria wake up knowing who she is.
+        This is what makes Singularity wake up knowing who she is.
         """
         if not self._initialized:
             logger.error("COMB not initialized")

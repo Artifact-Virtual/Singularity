@@ -32,7 +32,7 @@ Phase 0: Foundation
 │   ├── singularity/
 │   │   ├── VISION.md
 │   │   ├── DEPENDENCIES.md
-│   │   ├── aria/                    ← the runtime package
+│   │   ├── singularity/                    ← the runtime package
 │   │   │   ├── __init__.py
 │   │   │   ├── __main__.py          ← entry point
 │   │   │   ├── bus.py               ← event bus (FOUNDATION)
