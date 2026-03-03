@@ -1,0 +1,171 @@
+# Singularity Runtime Configuration
+# Merged from: ~/.plug/config.json + executives/plug-csuite-config.json
+# Imported: Day 19 (2026-03-03)
+# This is what Aria reads at boot.
+
+# ── Voice (LLM Providers) ──
+voice:
+  primary: "claude-opus-4.6"
+  fallbacks:
+    - "Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8"
+  proxy:
+    base_url: "http://localhost:3000/v1"
+    api_key: "n/a"
+    timeout: 120.0
+  temperature: 0.3
+  max_tokens: 8192
+
+  # C-Suite uses a lighter model (executives don't need Opus)
+  csuite:
+    primary: "claude-sonnet-4"
+    fallbacks:
+      - "gemini-2.0-flash"
+      - "gpt-4.1-mini"
+    temperature: 0.5
+    max_tokens: 4096
+
+  # Degraded mode (when cloud proxy is down)
+  degraded:
+    model: "qwen2.5-coder:7b"
+    base_url: "http://localhost:11434/v1"
+    max_tokens: 2048
+    system_prefix: "[DEGRADED MODE - Local model, be concise]"
+
+# ── Nerve (Channel Adapters) ──
+nerve:
+  discord:
+    bot_user_id: "1472994585583030366"
+    guild_ids:
+      - "1326925607589642352"     # ARTIFACT VIRTUAL
+      - "1405819130921091174"     # AVA's server
+    require_mention: false
+    dm_policy: "deny"
+    dm_allowlist:
+      - "193011943382974466"       # Ali
+    status_message: "⚡ Aria Online"
+    max_message_length: 2000
+    reconnect_delay: 5.0
+    max_reconnect_delay: 300.0
+    sister_bot_ids:
+      - "1459121107641569291"      # AVA (Mach6)
+    # Token loaded from vault at runtime
+
+  whatsapp:
+    enabled: false  # Aria doesn't have WhatsApp — AVA handles that
+
+# ── Cortex (Agent Config) ──
+cortex:
+  workspace: "/home/adam/workspace/enterprise"
+  exec_timeout: 30
+  exec_max_output: 50000
+  compaction:
+    enabled: true
+    max_context_tokens: 115000
+    target_tokens: 70000
+
+# ── PULSE (Budget) ──
+pulse:
+  default_cap: 20
+  expanded_cap: 40        # was 100, reduced after Day 19 Aria loop incident
+  nudge_limit: 2          # max nudge injections per conversation
+
+# ── C-Suite Personas ──
+# Each persona maps a Discord channel to an executive role.
+# The Coordinator (aria/csuite) routes dispatch events to the right persona.
+personas:
+  - name: "AVA"
+    channel_id: "1473617106158227639"    # #ava-command
+    workspace: "executives/ava-command"
+    model: "claude-opus-4.6"
+    require_mention: true
+    authorized_users:
+      - "193011943382974466"   # Ali
+      - "1459121107641569291"  # AVA bot
+    temperature: 0.3
+
+  - name: "CTO"
+    channel_id: "1473617109685637192"    # #cto
+    workspace: "executives/cto"
+    model: "claude-opus-4.6"
+    require_mention: true
+    authorized_users:
+      - "193011943382974466"
+      - "1459121107641569291"
+    temperature: 0.2
+
+  - name: "COO"
+    channel_id: "1473617113301258354"    # #coo
+    workspace: "executives/coo"
+    model: "claude-opus-4.6"
+    require_mention: true
+    authorized_users:
+      - "193011943382974466"
+      - "1459121107641569291"
+    temperature: 0.2
+
+  - name: "CFO"
+    channel_id: "1473617116426014872"    # #cfo
+    workspace: "executives/cfo"
+    model: "claude-opus-4.6"
+    require_mention: true
+    authorized_users:
+      - "193011943382974466"
+      - "1459121107641569291"
+    temperature: 0.2
+
+  - name: "CISO"
+    channel_id: "1473617119986843741"    # #ciso
+    workspace: "executives/ciso"
+    model: "claude-opus-4.6"
+    require_mention: true
+    authorized_users:
+      - "193011943382974466"
+      - "1459121107641569291"
+    temperature: 0.2
+
+  - name: "AEGIS"
+    channel_id: "1473617123094823055"    # #aegis
+    workspace: "executives/ciso"
+    model: "claude-opus-4.6"
+    require_mention: true
+    authorized_users:
+      - "193011943382974466"
+      - "1459121107641569291"
+    temperature: 0.2
+
+  - name: "BRIDGE"
+    channel_id: "1477331186912329800"    # #bridge
+    model: "claude-opus-4.6"
+    require_mention: true
+    authorized_users:
+      - "193011943382974466"
+      - "1459121107641569291"
+    temperature: 0.3
+    max_tokens: 4096
+
+  - name: "SISTERS"
+    channel_id: "1475929150488449138"    # #the-girls
+    model: "claude-opus-4.6"
+    require_mention: false
+    authorized_users:
+      - "193011943382974466"
+      - "1459121107641569291"
+    temperature: 0.5
+    max_tokens: 4096
+
+  default_persona: "AVA"
+
+# ── Daemon ──
+daemon:
+  auto_restart: true
+  max_restarts: 5
+  restart_window: 300    # seconds
+
+# ── Webhooks (C-Suite Dispatch — legacy, being replaced by native bus) ──
+webhooks:
+  # Webhook URLs loaded from vault at runtime — see .env.example
+  ava:  "${WEBHOOK_AVA}"
+  cto:  "${WEBHOOK_CTO}"
+  coo:  "${WEBHOOK_COO}"
+  cfo:  "${WEBHOOK_CFO}"
+  ciso: "${WEBHOOK_CISO}"

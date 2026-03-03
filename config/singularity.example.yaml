@@ -1,0 +1,82 @@
+# ============================================================
+#  SINGULARITY [AE] — Example Configuration
+# ============================================================
+#  Copy to config/singularity.yaml and customize.
+#  Environment variables override values here.
+#  Format: SINGULARITY_{SECTION}_{KEY} (uppercase, underscores)
+# ============================================================
+
+# ── VOICE (LLM Provider Chain) ─────────────────────────────
+# Singularity cascades through providers automatically.
+# If the primary fails, it falls through to the next.
+voice:
+  primary_model: "claude-sonnet-4"
+  fallback_models:
+    - "gemini-2.0-flash"
+    - "gpt-4.1-mini"
+  proxy:
+    base_url: "http://localhost:3000/v1"  # GitHub Copilot proxy
+    api_key: "n/a"
+    timeout: 120.0
+  ollama:
+    enabled: true
+    base_url: "http://localhost:11434"
+    models:
+      - "qwen2.5-coder:7b"
+    timeout: 120.0
+  temperature: 0.5
+  max_tokens: 4096
+
+# ── DISCORD ─────────────────────────────────────────────────
+discord:
+  token: ""                               # Set via SINGULARITY_DISCORD_TOKEN
+  bot_user_id: ""                         # Your bot's user ID
+  guild_ids: []                           # Server IDs to listen on
+  require_mention: true                   # Only respond when @mentioned in guilds
+  dm_policy: "allowlist"                  # "open" or "allowlist"
+  dm_allowlist: []                        # User IDs allowed to DM
+  authorized_users: []                    # Admin user IDs
+  sister_bot_ids: []                      # Other bot IDs to yield to
+  status_message: "⚡ Online"
+  max_message_length: 2000
+  reconnect_delay: 5.0
+  max_reconnect_delay: 300.0
+
+# ── MEMORY ──────────────────────────────────────────────────
+memory:
+  max_context_tokens: 100000
+  target_tokens: 60000
+  compaction_enabled: true
+  recall_on_boot: true                    # Load COMB memory on startup
+
+# ── TOOLS (SINEW) ──────────────────────────────────────────
+tools:
+  workspace: "."                          # Root workspace path
+  exec_timeout: 30                        # Shell command timeout (seconds)
+  exec_max_output: 50000                  # Max stdout/stderr chars
+
+# ── PULSE (Scheduler & Budget) ─────────────────────────────
+pulse:
+  default_cap: 20                         # Default iteration budget per task
+  expanded_cap: 100                       # Auto-expanded cap for complex tasks
+  expand_threshold: 18                    # Expand when reaching this iteration
+
+# ── IMMUNE (Health & Recovery) ─────────────────────────────
+immune:
+  check_interval: 60.0                    # Health check interval (seconds)
+  alert_channels: []                      # Channel IDs for health alerts
+
+# ── C-SUITE ─────────────────────────────────────────────────
+csuite:
+  enabled: true
+  personas: []                            # Pre-configured executive personas
+
+# ── IDENTITY ────────────────────────────────────────────────
+# Files loaded into system prompt for persona/context.
+identity_files: []
+  # - "SOUL.md"
+  # - "IDENTITY.md"
+  # - "USER.md"
+
+# ── LOGGING ─────────────────────────────────────────────────
+log_level: "INFO"                         # DEBUG, INFO, WARNING, ERROR

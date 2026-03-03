@@ -1,0 +1,170 @@
+"""
+MEMORY — COMB Native Memory
+==============================
+
+COMB isn't a library call bolted onto Aria.
+COMB is her bloodstream. Every interaction persists.
+Every context window has history. She remembers.
+
+Architecture:
+    CombMemory — wrapper around comb-db (PyPI: comb-db)
+        - stage(content) → store for next session
+        - recall() → retrieve staged content
+        - search(query) → semantic/BM25 hybrid search
+    
+    This integrates with the event bus:
+        - memory.comb.staged → when something is staged
+        - memory.comb.recalled → at boot when recall completes
+        - memory.comb.searched → when a search query runs
+
+Design:
+    Plug had aria_memory/flush.py as a standalone script.
+    Singularity has COMB as a native subsystem — imported, initialized,
+    and wired into the event bus at boot. No shell-outs. No subprocess.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import os
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Optional
+
+logger = logging.getLogger("singularity.memory.comb")
+
+
+class CombMemory:
+    """Native COMB integration for persistent cross-session memory.
+    
+    Wraps comb-db library for:
+    - Stage/recall (lossless session-to-session carryforward)
+    - Search (if HEKTOR is available)
+    - Direct store operations
+    """
+    
+    def __init__(self, store_path: str | Path, bus: Any = None):
+        self.store_path = Path(store_path)
+        self.store_path.mkdir(parents=True, exist_ok=True)
+        self.bus = bus
+        self._comb = None
+        self._initialized = False
+    
+    async def initialize(self) -> None:
+        """Initialize COMB store. Must be called before use."""
+        try:
+            from comb import CombStore
+            self._comb = CombStore(str(self.store_path))
+            self._initialized = True
+            logger.info("COMB memory initialized at %s", self.store_path)
+        except ImportError:
+            # Fallback: file-based staging without comb-db
+            logger.warning("comb-db not installed, using file-based fallback")
+            self._initialized = True
+        
+        if self.bus:
+            await self.bus.emit("memory.comb.initialized", {
+                "store_path": str(self.store_path),
+                "native": self._comb is not None,
+            }, source="memory.comb")
+    
+    async def stage(self, content: str) -> bool:
+        """Stage content for next session recall.
+        
+        This is the core of memory persistence.
+        What you stage survives restarts.
+        """
+        if not self._initialized:
+            logger.error("COMB not initialized — call initialize() first")
+            return False
+        
+        try:
+            if self._comb:
+                self._comb.stage(content)
+            else:
+                # File-based fallback
+                stage_file = self.store_path / "staged.jsonl"
+                entry = {
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "content": content,
+                }
+                with open(stage_file, "a", encoding="utf-8") as f:
+                    f.write(json.dumps(entry) + "\n")
+            
+            logger.info("Staged %d chars into COMB", len(content))
+            
+            if self.bus:
+                await self.bus.emit("memory.comb.staged", {
+                    "chars": len(content),
+                    "preview": content[:100],
+                }, source="memory.comb")
+            
+            return True
+            
+        except Exception as e:
+            logger.error("COMB stage failed: %s", e)
+            return False
+    
+    async def recall(self) -> str:
+        """Recall staged content from previous session.
+        
+        This is what makes Aria wake up knowing who she is.
+        """
+        if not self._initialized:
+            logger.error("COMB not initialized")
+            return ""
+        
+        try:
+            content = ""
+            if self._comb:
+                content = self._comb.recall()
+            else:
+                # File-based fallback
+                stage_file = self.store_path / "staged.jsonl"
+                if stage_file.exists():
+                    lines = stage_file.read_text(encoding="utf-8").strip().split("\n")
+                    entries = [json.loads(line) for line in lines if line.strip()]
+                    content = "\n".join(e["content"] for e in entries)
+            
+            if content:
+                logger.info("COMB recall: %d chars", len(content))
+            else:
+                logger.info("COMB recall: empty (first boot or no staged content)")
+            
+            if self.bus:
+                await self.bus.emit("memory.comb.recalled", {
+                    "chars": len(content),
+                    "has_content": bool(content),
+                }, source="memory.comb")
+            
+            return content
+            
+        except Exception as e:
+            logger.error("COMB recall failed: %s", e)
+            return ""
+    
+    async def search(self, query: str, k: int = 5, mode: str = "hybrid") -> list[dict]:
+        """Search COMB/HEKTOR for relevant memories.
+        
+        Returns list of {content, score, source} dicts.
+        """
+        # This delegates to HEKTOR if available
+        results = []
+        try:
+            if self._comb and hasattr(self._comb, 'search'):
+                raw = self._comb.search(query, k=k, mode=mode)
+                results = raw if isinstance(raw, list) else []
+            else:
+                logger.debug("COMB search not available (no native comb-db or search method)")
+        except Exception as e:
+            logger.error("COMB search failed: %s", e)
+        
+        if self.bus:
+            await self.bus.emit("memory.comb.searched", {
+                "query": query,
+                "results": len(results),
+                "mode": mode,
+            }, source="memory.comb")
+        
+        return results
