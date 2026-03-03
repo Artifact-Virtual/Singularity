@@ -3,7 +3,7 @@ NERVE — Communication Subsystem
 ==================================
 
 Channel adapters, message routing, formatting.
-The nervous system that connects Aria to the outside world.
+The nervous system that connects Singularity to the outside world.
 
 Components:
     types       — Message types, envelopes, capabilities, health tracking

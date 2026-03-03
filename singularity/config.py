@@ -76,7 +76,7 @@ class DiscordConfig(BaseModel):
     authorized_users: list[str] = Field(default_factory=list)
     sister_bot_ids: list[str] = Field(default_factory=list)
     strict_mention_channels: list[str] = Field(default_factory=list)
-    status_message: str = "⚡ Aria Online"
+    status_message: str = "⚡ Singularity Online"
     max_message_length: int = 2000
     reconnect_delay: float = 5.0
     max_reconnect_delay: float = 300.0
@@ -178,7 +178,7 @@ class SingularityConfig(BaseModel):
     
     # Identity
     identity_files: list[str] = Field(default_factory=lambda: [
-        "SOUL.md", "AGENTS.md", "USER.md", "IDENTITY_ARIA.md",
+        "AGENTS.md",
     ])
     
     # Runtime

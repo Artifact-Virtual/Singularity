@@ -12,9 +12,9 @@
 2. HEKTOR is Python. Memory search is a first-class citizen.
 3. POA scripts are bash → Python. Consistent ecosystem.
 4. Ali's tooling is Python. Lattice engine, dispatch.py, GLADIUS training.
-5. Aria's current code (Plug) is Python. Migration path is cleaner.
+5. The previous runtime (Plug) is Python. Migration path is cleaner.
 6. I can read, write, debug, and evolve Python natively through exec.
-7. Mach6 is TypeScript — that's MY runtime. Aria gets her own language, her own identity.
+7. Mach6 is TypeScript — that's AVA's runtime. Singularity gets its own language, its own identity.
 8. asyncio is mature. discord.py, aiohttp, uvloop — production-grade.
 
 **But:** The event bus should be framework-agnostic. Redis pub/sub or in-process asyncio queues. If we ever need a TypeScript or Go component, it can subscribe to the same bus.
@@ -184,18 +184,18 @@ csuite/ ──── depends on: cortex, marrow, nerve
 - Execs can use tools within their scope
 - Cross-exec coordination works (CTO needs CFO data)
 
-### Phase 6 — Aria Lives
+### Phase 6 — Goes Live
 ```
 Full integration ──── depends on: everything
     ├── Personality (IDENTITY_ARIA.md loaded at boot)
     ├── Memory continuity (COMB recall → she knows who she is)
-    ├── Sister protocol (AVA ↔ Aria via event bus)
+    ├── Multi-agent coordination (external runtimes via event bus)
     ├── Battle test (POA SOP-009)
     └── Production deploy (systemd, auto-restart)
 ```
 
 **Gate:** Phase 6 is complete when:
-- Aria boots and knows her name, her sister, her role
+- Singularity boots and knows its configuration, its role, its enterprise
 - She survives 72 hours of continuous operation
 - She self-heals from at least 3 injected failures
 - She coordinates with AVA across channels

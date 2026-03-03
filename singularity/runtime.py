@@ -153,6 +153,7 @@ class Runtime:
         sessions_db = os.path.join(self.workspace, ".singularity", "sessions.db")
         os.makedirs(os.path.dirname(sessions_db), exist_ok=True)
         self.sessions = SessionStore(db_path=sessions_db, bus=self.bus)
+        await self.sessions.open()
         comb_path = os.path.join(self.workspace, ".singularity", "comb")
         self.comb = CombMemory(store_path=comb_path, bus=self.bus)
         logger.info(f"  MEMORY ready (workspace: {self.workspace})")
@@ -224,10 +225,10 @@ class Runtime:
             cooldown_seconds=bc.cooldown_seconds,
         )
         
-        # Identity files to load into system prompt
+        # Identity files to load into system prompt (config-driven)
         workspace = self.config.tools.workspace
         identity_files = []
-        for fname in ["IDENTITY_ARIA.md", "SOUL_ARIA.md", "AGENTS_ARIA.md", "USER_ARIA.md"]:
+        for fname in self.config.identity_files:
             fpath = os.path.join(workspace, fname)
             if os.path.exists(fpath):
                 identity_files.append(fpath)

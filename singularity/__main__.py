@@ -143,8 +143,8 @@ async def test_skeleton():
             await store.open()
             
             # Add messages
-            m1 = Message(role="user", content="Hello Aria")
-            m2 = Message(role="assistant", content="Hello! I'm Aria.")
+            m1 = Message(role="user", content="Hello Singularity")
+            m2 = Message(role="assistant", content="Hello! I'm Singularity.")
             
             id1 = await store.add_message("ch1", m1, token_count=10)
             id2 = await store.add_message("ch1", m2, token_count=15)
@@ -156,7 +156,7 @@ async def test_skeleton():
             msgs = await store.get_messages("ch1")
             assert len(msgs) == 2
             assert msgs[0].role == "user"
-            assert msgs[1].content == "Hello! I'm Aria."
+            assert msgs[1].content == "Hello! I'm Singularity."
             
             # Token count
             tokens = await store.get_token_count("ch1")
@@ -204,7 +204,7 @@ async def test_skeleton():
             await comb.initialize()
             
             # Stage
-            ok = await comb.stage("Aria remembers everything")
+            ok = await comb.stage("Singularity remembers everything")
             assert ok, "Stage failed"
             
             # Stage more
@@ -213,7 +213,7 @@ async def test_skeleton():
             
             # Recall
             content = await comb.recall()
-            assert "Aria remembers" in content
+            assert "Singularity remembers" in content
             assert "Singularity" in content
         
         results.append(("MEMORY COMB", "PASS", "stage + recall"))
@@ -242,9 +242,9 @@ async def test_skeleton():
         # Test write + read roundtrip
         import tempfile, os
         test_file = os.path.join(tempfile.gettempdir(), "singularity_test.txt")
-        await executor.execute("write", {"path": test_file, "content": "Aria was here"})
+        await executor.execute("write", {"path": test_file, "content": "Singularity was here"})
         result = await executor.execute("read", {"path": test_file})
-        assert "Aria was here" in result
+        assert "Singularity was here" in result
         os.unlink(test_file)
         
         # Test sandbox blocks
@@ -342,14 +342,14 @@ async def test_skeleton():
         ]
         
         messages = assembler.assemble(
-            system_prompt="You are Aria.",
+            system_prompt="You are Singularity.",
             history=history,
             new_message=ChatMessage(role="user", content="And 3+3?"),
         )
         
         assert len(messages) == 4  # system + 2 history + new
         assert messages[0].role == "system"
-        assert messages[0].content == "You are Aria."
+        assert messages[0].content == "You are Singularity."
         assert messages[-1].content == "And 3+3?"
         
         # Test truncation (tiny budget)
@@ -365,12 +365,12 @@ async def test_skeleton():
         
         # Test system prompt building
         prompt = build_system_prompt(
-            persona_name="Aria",
-            persona_prompt="You are Aria, the Autonomous Enterprise.",
+            persona_name="Singularity",
+            persona_prompt="You are Singularity, the Autonomous Enterprise.",
             rules="Be helpful.",
             comb_context="Day 19: Singularity begins.",
         )
-        assert "Aria" in prompt
+        assert "Singularity" in prompt
         assert "Be helpful" in prompt
         assert "Day 19" in prompt
         
@@ -393,8 +393,8 @@ async def test_skeleton():
         
         # Test config
         config = AgentConfig(
-            persona_name="aria",
-            system_prompt="You are Aria.",
+            persona_name="singularity",
+            system_prompt="You are Singularity.",
             max_iterations=20,
             parallel_tools=True,
         )
@@ -532,7 +532,7 @@ async def test_skeleton():
         ollama = OllamaProvider(model="llama3.2")
         chain = ProviderChain([copilot, ollama], bus=integ_bus)
         tools = ToolExecutor(workspace="/home/adam/workspace/enterprise", bus=integ_bus)
-        config = AgentConfig(persona_name="aria", system_prompt="You are Aria.")
+        config = AgentConfig(persona_name="singularity", system_prompt="You are Singularity.")
         
         # Create agent loop with all dependencies
         agent = AgentLoop(voice=chain, tools=tools, config=config, bus=integ_bus)
@@ -738,7 +738,7 @@ async def test_skeleton():
         # Group with mention → routed
         ok = router.route(
             ChannelSource("discord", "d-main", "ch-1", ChatType.CHANNEL, "user", mentions=["bot-id"]),
-            InboundPayload(PayloadType.TEXT, text="@Aria help"),
+            InboundPayload(PayloadType.TEXT, text="@Singularity help"),
             "t-3",
         )
         await asyncio.sleep(0.05)
@@ -1265,12 +1265,25 @@ def main():
             pass
     
     else:
-        print("SINGULARITY [AE] — Autonomous Enterprise Runtime")
-        print()
-        print("Usage:")
-        print("  python3 -m singularity              # Start Singularity")
-        print("  python3 -m singularity --test       # Run gate tests")
-        print("  python3 -m singularity --config X   # Use custom config")
+        # Forward to CLI command system (init, audit, status, etc.)
+        cli_commands = {"init", "audit", "status", "spawn-exec", "poa", "scale-report", "health", "changeset", "test"}
+        if args and args[0] in cli_commands:
+            from .cli.main import main as cli_main
+            cli_main()
+        else:
+            print("SINGULARITY [AE] — Autonomous Enterprise Runtime")
+            print()
+            print("Usage:")
+            print("  python3 -m singularity              # Start Singularity")
+            print("  python3 -m singularity --test        # Run gate tests")
+            print("  python3 -m singularity --config X    # Use custom config")
+            print()
+            print("  python3 -m singularity init          # Initialize workspace")
+            print("  python3 -m singularity audit         # Audit workspace")
+            print("  python3 -m singularity status        # Runtime status")
+            print("  python3 -m singularity health        # System health")
+            print("  python3 -m singularity spawn-exec X  # Propose executive")
+            print("  python3 -m singularity poa list      # POA management")
 
 
 if __name__ == "__main__":

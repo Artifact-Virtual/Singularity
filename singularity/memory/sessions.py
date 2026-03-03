@@ -9,7 +9,7 @@ Architecture:
     Each channel gets its own session (keyed by channel_id).
     Messages stored as JSON with token counts for compaction.
 
-This replaces Plug's sessions/store.py with event bus integration
+This replaces the previous runtime's (Plug) session store with event bus integration
 and better error recovery (Plug's store could corrupt on crash).
 """
 

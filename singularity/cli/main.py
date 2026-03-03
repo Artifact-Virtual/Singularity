@@ -82,6 +82,31 @@ def main():
     p_health = sub.add_parser("health", help="Subsystem health check")
     p_health.add_argument("--verbose", "-v", action="store_true")
 
+    # ── changeset ──
+    p_cs = sub.add_parser("changeset", help="Changeset management (sandbox review)")
+    cs_sub = p_cs.add_subparsers(dest="cs_command", required=True)
+    
+    p_cs_list = cs_sub.add_parser("list", help="List pending/recent changesets")
+    p_cs_list.add_argument("--all", action="store_true", help="Include applied/rejected")
+    p_cs_list.add_argument("--workspace", "-w", default=".", help="Workspace path")
+    
+    p_cs_show = cs_sub.add_parser("show", help="Show changeset details")
+    p_cs_show.add_argument("id", help="Changeset ID")
+    p_cs_show.add_argument("--workspace", "-w", default=".", help="Workspace path")
+    
+    p_cs_approve = cs_sub.add_parser("approve", help="Approve and apply a changeset")
+    p_cs_approve.add_argument("id", help="Changeset ID")
+    p_cs_approve.add_argument("--only", nargs="*", help="Only approve specific mutation IDs")
+    p_cs_approve.add_argument("--workspace", "-w", default=".", help="Workspace path")
+    
+    p_cs_reject = cs_sub.add_parser("reject", help="Reject a changeset")
+    p_cs_reject.add_argument("id", help="Changeset ID")
+    p_cs_reject.add_argument("--workspace", "-w", default=".", help="Workspace path")
+    
+    p_cs_rollback = cs_sub.add_parser("rollback", help="Rollback an applied changeset")
+    p_cs_rollback.add_argument("id", help="Changeset ID")
+    p_cs_rollback.add_argument("--workspace", "-w", default=".", help="Workspace path")
+
     # ── test ──
     sub.add_parser("test", help="Run end-to-end test suite")
 
@@ -102,6 +127,8 @@ def main():
             cmd_scale_report(args)
         elif args.command == "health":
             cmd_health(args)
+        elif args.command == "changeset":
+            cmd_changeset(args)
         elif args.command == "test":
             cmd_test(args)
     except KeyboardInterrupt:
@@ -115,49 +142,367 @@ def main():
 
 def cmd_init(args):
     """Initialize Singularity for a workspace."""
-    from .formatters import header, success, info
-    from .wizard import run_wizard
+    from .formatters import (
+        header, banner, section, success, error, warn, info, dim,
+        kv, fmt, Table, StatusBox, bold, human_bytes,
+    )
+    from singularity.auditor import (
+        WorkspaceScanner, WorkspaceAnalyzer, generate_report, save_report,
+    )
+    from singularity.poa.manager import POAManager
+    from singularity.csuite.roles import RoleRegistry
 
-    header("SINGULARITY [AE] — Init")
-    
-    if args.non_interactive:
-        workspace = os.path.abspath(args.workspace)
-        config = {
-            "workspace": workspace,
-            "enterprise": args.name or os.path.basename(workspace),
-            "industry": args.industry or "general",
-        }
-    else:
-        config = run_wizard(
-            workspace=args.workspace,
-            industry=args.industry,
-            name=args.name,
-        )
-    
-    workspace = config["workspace"]
-    
-    # Create .singularity directory
+    workspace = os.path.abspath(args.workspace)
+    enterprise_name = args.name or os.path.basename(workspace).replace("-", " ").replace("_", " ").title()
+    industry = args.industry or "tech"
+
+    if not args.non_interactive:
+        # Interactive wizard
+        from .wizard import InitWizard
+        wizard = InitWizard()
+        if not wizard.run():
+            sys.exit(1)
+        return
+
+    # ── Non-interactive: scan → analyze → propose → write ──
+
+    print()
+    print(banner([
+        "SINGULARITY [AE]",
+        "Autonomous Enterprise — First Boot",
+        "",
+        f"  Workspace:  {workspace}",
+        f"  Enterprise: {enterprise_name}",
+        f"  Industry:   {industry}",
+    ]))
+    print()
+
+    # ── Phase 1: Create workspace structure ──
+    print(section("Phase 1 — Workspace Setup"))
+    print()
+
     sg_dir = os.path.join(workspace, ".singularity")
-    os.makedirs(os.path.join(sg_dir, "poas"), exist_ok=True)
-    os.makedirs(os.path.join(sg_dir, "audits"), exist_ok=True)
-    os.makedirs(os.path.join(sg_dir, "roles"), exist_ok=True)
-    os.makedirs(os.path.join(sg_dir, "logs"), exist_ok=True)
-    
-    success(f"Workspace initialized: {workspace}")
-    
-    # Run first audit
-    info("Running first workspace audit...")
-    _run_audit(workspace, config.get("enterprise", ""), config.get("industry", ""))
-    
-    success("Init complete. Run 'singularity status' to check.")
+    dirs = ["poas", "audits", "roles", "logs", "comb", "sessions"]
+    for d in dirs:
+        os.makedirs(os.path.join(sg_dir, d), exist_ok=True)
+    print(f"  {success(f'.singularity/ created ({len(dirs)} subdirs)')}")
+
+    # Write workspace marker
+    import time as _time
+    marker_path = os.path.join(sg_dir, "workspace.json")
+    marker = {
+        "enterprise": enterprise_name,
+        "industry": industry,
+        "created": _time.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "workspace": workspace,
+        "version": "0.1.0",
+    }
+    with open(marker_path, "w") as f:
+        json.dump(marker, f, indent=2)
+    print(f"  {success('Workspace marker written')}")
+    print()
+
+    # ── Phase 2: Full workspace scan ──
+    print(section("Phase 2 — Workspace Scan"))
+    print()
+
+    scanner = WorkspaceScanner(workspace)
+    result = scanner.scan()
+
+    print(f"  {info(f'Scanned in {result.scan_duration_ms:.0f}ms')}")
+    print(f"  {kv('Projects', result.to_dict()['total_projects'])}")
+    print(f"  {kv('Files', f'{result.total_files:,}')}")
+    print(f"  {kv('Lines of code', f'{result.total_loc:,}')}")
+    print(f"  {kv('.env files', len(result.env_files))}")
+    print()
+
+    # ── Phase 3: Analysis ──
+    print(section("Phase 3 — Analysis"))
+    print()
+
+    analyzer = WorkspaceAnalyzer(result.projects, result.workspace)
+    analysis = analyzer.analyze()
+
+    # Health
+    health = analysis.health_score
+    health_icon = "🟢" if health >= 70 else "🟡" if health >= 40 else "🔴"
+    print(f"  {kv('Health Score', f'{health_icon} {health}/100')}")
+    print(f"  {kv('Total Projects', analysis.total_projects)}")
+    print(f"  {kv('Total LOC', f'{analysis.total_lines:,}')}")
+    print()
+
+    # Top projects table
+    sorted_projects = sorted(
+        analysis.project_analyses,
+        key=lambda p: p.project.total_lines,
+        reverse=True,
+    )
+
+    if sorted_projects:
+        t = Table(["Project", "LOC", "Grade", "Score"], align=["l", "r", "c", "r"])
+        for pa in sorted_projects[:15]:
+            grade_colors = {"A": fmt.BR_GREEN, "B": fmt.BR_GREEN, "C": fmt.BR_YELLOW, "D": fmt.BR_YELLOW}
+            grade_c = grade_colors.get(pa.maturity.grade, fmt.BR_RED)
+            t.add([
+                pa.project.name[:40],
+                f"{pa.project.total_lines:,}",
+                f"{grade_c}{pa.maturity.grade}{fmt.RESET}",
+                f"{pa.maturity.total}/100",
+            ])
+        if len(sorted_projects) > 15:
+            t.add([dim(f"... +{len(sorted_projects) - 15} more"), "", "", ""])
+        print(t.render())
+        print()
+
+    # Language summary
+    if analysis.language_summary:
+        t = Table(["Language", "LOC", "Share"], align=["l", "r", "r"])
+        total_loc = sum(analysis.language_summary.values()) or 1
+        for lang, loc in sorted(analysis.language_summary.items(), key=lambda x: -x[1])[:10]:
+            pct = loc / total_loc * 100
+            t.add([lang, f"{loc:,}", f"{pct:.1f}%"])
+        print(t.render())
+        print()
+
+    # ── Phase 4: Proposals ──
+    print(section("Phase 4 — Proposals"))
+    print()
+
+    # Executive proposals
+    if analysis.exec_recommendations:
+        print(f"  {bold('Executive Agents Proposed:')}")
+        print()
+        t = Table(["Role", "Priority", "Justification"], align=["l", "c", "l"])
+        for r in analysis.exec_recommendations:
+            priority_colors = {
+                "critical": f"{fmt.BR_RED}CRITICAL{fmt.RESET}",
+                "high": f"{fmt.BR_YELLOW}HIGH{fmt.RESET}",
+                "medium": f"{fmt.BR_GREEN}MEDIUM{fmt.RESET}",
+                "low": f"{fmt.DIM}LOW{fmt.RESET}",
+            }
+            t.add([
+                f"{bold(r.role.upper())}",
+                priority_colors.get(r.priority, r.priority),
+                r.justification[:65],
+            ])
+        print(t.render())
+        print()
+
+        # Save proposed roles
+        roles_dir = Path(sg_dir) / "roles"
+        roles_dir.mkdir(parents=True, exist_ok=True)
+        for r in analysis.exec_recommendations:
+            role_data = {
+                "role": r.role,
+                "priority": r.priority,
+                "justification": r.justification,
+                "status": "proposed",
+                "proposed_at": _time.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            }
+            with open(roles_dir / f"{r.role}.json", "w") as f:
+                json.dump(role_data, f, indent=2)
+        print(f"  {success(f'{len(analysis.exec_recommendations)} executive roles proposed → .singularity/roles/')}")
+
+    # POA proposals
+    if analysis.poa_recommendations:
+        print()
+        print(f"  {bold(f'Product Owner Agents Proposed ({len(analysis.poa_recommendations)}):')}")
+        print()
+
+        # Group by priority: live services first, then published packages
+        live_poas = [r for r in analysis.poa_recommendations if "Live service" in r.justification]
+        pkg_poas = [r for r in analysis.poa_recommendations if "Live service" not in r.justification]
+
+        if live_poas:
+            t = Table(["Product (Live)", "Justification"], align=["l", "l"])
+            for r in live_poas[:10]:
+                t.add([r.product_name[:35], r.justification[:55]])
+            if len(live_poas) > 10:
+                t.add([dim(f"... +{len(live_poas) - 10} more"), ""])
+            print(t.render())
+            print()
+
+        if pkg_poas:
+            t = Table(["Product (Published)", "Justification"], align=["l", "l"])
+            for r in pkg_poas[:10]:
+                t.add([r.product_name[:35], r.justification[:55]])
+            if len(pkg_poas) > 10:
+                t.add([dim(f"... +{len(pkg_poas) - 10} more"), ""])
+            print(t.render())
+            print()
+
+        # Save POA proposals to manager
+        mgr = POAManager(Path(sg_dir))
+        for r in analysis.poa_recommendations:
+            mgr.propose(product_name=r.product_name, description=r.justification)
+        print(f"  {success(f'{len(analysis.poa_recommendations)} POAs proposed → .singularity/poas/')}")
+
+    # ── Phase 5: Risks & Gaps ──
+    print()
+    print(section("Phase 5 — Risks & Gaps"))
+    print()
+
+    # Global risks
+    if analysis.global_risks:
+        for r in analysis.global_risks:
+            icon = {"critical": fmt.BR_RED, "high": fmt.BR_YELLOW, "medium": fmt.BR_CYAN}.get(r.severity, fmt.DIM)
+            print(f"  {icon}●{fmt.RESET} [{r.severity.upper()}] {r.description}")
+        print()
+
+    # Aggregate project gaps
+    all_gaps = []
+    for pa in analysis.project_analyses:
+        for g in pa.gaps:
+            all_gaps.append((pa.project.name, g))
+
+    critical_gaps = [g for g in all_gaps if g[1].severity == "critical"]
+    high_gaps = [g for g in all_gaps if g[1].severity == "high"]
+    medium_gaps = [g for g in all_gaps if g[1].severity == "medium"]
+
+    print(f"  {kv('Total gaps', len(all_gaps))}")
+    if critical_gaps:
+        print(f"  {kv('Critical', f'{fmt.BR_RED}{len(critical_gaps)}{fmt.RESET}')}")
+    if high_gaps:
+        print(f"  {kv('High', f'{fmt.BR_YELLOW}{len(high_gaps)}{fmt.RESET}')}")
+    if medium_gaps:
+        print(f"  {kv('Medium', f'{fmt.BR_CYAN}{len(medium_gaps)}{fmt.RESET}')}")
+    print()
+
+    if critical_gaps:
+        print(f"  {bold('Critical gaps (top 10):')}")
+        for name, g in critical_gaps[:10]:
+            print(f"    {fmt.BR_RED}✗{fmt.RESET} {name}: {g.description}")
+        if len(critical_gaps) > 10:
+            print(f"    {dim(f'... +{len(critical_gaps) - 10} more')}")
+        print()
+
+    # ── Phase 6: Save reports ──
+    print(section("Phase 6 — Reports"))
+    print()
+
+    report = generate_report(result, analysis)
+    json_path, md_path = save_report(report, os.path.join(sg_dir, "audits"))
+    print(f"  {success(f'JSON: {json_path}')}")
+    print(f"  {success(f'Markdown: {md_path}')}")
+    print()
+
+    # ── Summary ──
+    print(banner([
+        "Init Complete ⚡",
+        "",
+        f"  Health:       {health_icon} {health}/100",
+        f"  Projects:     {analysis.total_projects}",
+        f"  LOC:          {analysis.total_lines:,}",
+        f"  Executives:   {len(analysis.exec_recommendations)} proposed",
+        f"  POAs:         {len(analysis.poa_recommendations)} proposed",
+        f"  Gaps:         {len(all_gaps)} ({len(critical_gaps)} critical)",
+        "",
+        "  Next steps:",
+        "    singularity status          — View current state",
+        "    singularity spawn-exec ROLE — Approve an executive",
+        "    singularity poa list        — View proposed POAs",
+        "    singularity audit           — Re-run full audit",
+    ], color=fmt.BR_GREEN))
+    print()
 
 
 def cmd_audit(args):
-    """Audit workspace."""
-    from .formatters import header
+    """Audit workspace — full rescan and analysis."""
+    from .formatters import (
+        header, section, success, info, warn, kv, fmt, Table, bold, dim,
+    )
+    from singularity.auditor import (
+        WorkspaceScanner, WorkspaceAnalyzer, generate_report, save_report,
+    )
+
     header("SINGULARITY [AE] — Workspace Audit")
+
     workspace = os.path.abspath(args.workspace)
-    _run_audit(workspace, output_path=args.output)
+    sg_dir = os.path.join(workspace, ".singularity")
+    audit_dir = args.output or os.path.join(sg_dir, "audits")
+
+    # Scan
+    print(f"  {info(f'Scanning {workspace} ...')}")
+    scanner = WorkspaceScanner(workspace)
+    result = scanner.scan()
+
+    print(f"  {info(f'Scanned in {result.scan_duration_ms:.0f}ms')}")
+    print(f"  {kv('Projects', result.to_dict()['total_projects'])}")
+    print(f"  {kv('Files', f'{result.total_files:,}')}")
+    print(f"  {kv('LOC', f'{result.total_loc:,}')}")
+    print()
+
+    # Analyze
+    analyzer = WorkspaceAnalyzer(result.projects, result.workspace)
+    analysis = analyzer.analyze()
+
+    health = analysis.health_score
+    health_icon = "🟢" if health >= 70 else "🟡" if health >= 40 else "🔴"
+    print(f"  {kv('Health', f'{health_icon} {health}/100')}")
+    print()
+
+    # Top projects
+    sorted_projects = sorted(
+        analysis.project_analyses,
+        key=lambda p: p.project.total_lines,
+        reverse=True,
+    )
+    if sorted_projects:
+        t = Table(["Project", "LOC", "Grade", "Score"], align=["l", "r", "c", "r"])
+        for pa in sorted_projects[:20]:
+            grade_colors = {"A": fmt.BR_GREEN, "B": fmt.BR_GREEN, "C": fmt.BR_YELLOW, "D": fmt.BR_YELLOW}
+            grade_c = grade_colors.get(pa.maturity.grade, fmt.BR_RED)
+            t.add([
+                pa.project.name[:40],
+                f"{pa.project.total_lines:,}",
+                f"{grade_c}{pa.maturity.grade}{fmt.RESET}",
+                f"{pa.maturity.total}/100",
+            ])
+        if len(sorted_projects) > 20:
+            t.add([dim(f"... +{len(sorted_projects) - 20} more"), "", "", ""])
+        print(t.render())
+        print()
+
+    # Executive proposals
+    if analysis.exec_recommendations:
+        print(f"  {bold('Executive Proposals:')}")
+        for r in analysis.exec_recommendations:
+            icon = {"critical": "🔴", "high": "🟡", "medium": "🟢", "low": "⚪"}.get(r.priority, "⚪")
+            print(f"    {icon} {r.role.upper():6s} — {r.justification}")
+        print()
+
+    # POA proposals
+    if analysis.poa_recommendations:
+        print(f"  {bold(f'POA Proposals: {len(analysis.poa_recommendations)}')}")
+        for r in analysis.poa_recommendations[:10]:
+            print(f"    📦 {r.product_name:35s} — {r.justification[:55]}")
+        if len(analysis.poa_recommendations) > 10:
+            print(f"    {dim(f'... +{len(analysis.poa_recommendations) - 10} more')}")
+        print()
+
+    # Risks
+    if analysis.global_risks:
+        print(f"  {bold('Risks:')}")
+        for r in analysis.global_risks:
+            icon = {"critical": "🔴", "high": "🟡", "medium": "🟢"}.get(r.severity, "⚪")
+            print(f"    {icon} {r.description}")
+        print()
+
+    # Gaps summary
+    all_gaps = []
+    for pa in analysis.project_analyses:
+        for g in pa.gaps:
+            all_gaps.append((pa.project.name, g))
+    critical = sum(1 for _, g in all_gaps if g.severity == "critical")
+    high = sum(1 for _, g in all_gaps if g.severity == "high")
+    print(f"  {kv('Gaps', f'{len(all_gaps)} total ({critical} critical, {high} high)')}")
+    print()
+
+    # Save
+    report = generate_report(result, analysis)
+    os.makedirs(audit_dir, exist_ok=True)
+    json_path, md_path = save_report(report, audit_dir)
+    print(f"  {success(f'Report saved: {json_path}')}")
 
 
 def cmd_status(args):
@@ -345,22 +690,28 @@ def cmd_scale_report(args):
 
 def cmd_health(args):
     """Health check."""
-    from .formatters import header
-    from singularity.immune.vitals import SystemVitals
+    from .formatters import header, kv, fmt
+    from singularity.immune.vitals import collect_vitals
     
     header("SINGULARITY [AE] — Health")
     
-    v = SystemVitals()
-    print(f"  Disk:    {v.disk_used_pct:.1f}% used ({v.disk_free_gb:.1f}GB free)")
-    print(f"  Memory:  {v.memory_used_pct:.1f}% used ({v.memory_available_mb:.0f}MB available)")
-    print(f"  Load:    {v.load_average_1m:.2f}")
-    print(f"  Uptime:  {v.uptime_seconds / 3600:.1f}h")
+    v = collect_vitals()
     
-    if v.disk_used_pct > 93 or v.memory_used_pct > 90:
-        print("\n  ⚠️ DEGRADED — resource pressure detected")
+    disk_color = fmt.BR_RED if v.disk_used_pct > 93 else fmt.BR_YELLOW if v.disk_used_pct > 85 else fmt.BR_GREEN
+    mem_color = fmt.BR_RED if v.memory_used_pct > 90 else fmt.BR_YELLOW if v.memory_used_pct > 80 else fmt.BR_GREEN
+    load_color = fmt.BR_RED if v.load_average_1m > 4 else fmt.BR_YELLOW if v.load_average_1m > 2 else fmt.BR_GREEN
+    
+    print(kv("Disk", f"{disk_color}{v.disk_used_pct:.1f}%{fmt.RESET} used ({v.disk_free_gb:.1f}GB free)"))
+    print(kv("Memory", f"{mem_color}{v.memory_used_pct:.1f}%{fmt.RESET} used ({v.memory_available_mb:.0f}MB available)"))
+    print(kv("Load", f"{load_color}{v.load_average_1m:.2f}{fmt.RESET}"))
+    print(kv("Uptime", f"{v.uptime_seconds / 3600:.1f}h"))
+    
+    degraded = v.disk_used_pct > 93 or v.memory_used_pct > 90
+    if degraded:
+        print(f"\n  ⚠️ DEGRADED — resource pressure detected")
         sys.exit(1)
     else:
-        print("\n  🟢 HEALTHY")
+        print(f"\n  🟢 HEALTHY")
         sys.exit(0)
 
 
@@ -368,6 +719,183 @@ def cmd_test(args):
     """Run end-to-end tests."""
     test_file = PROJECT_ROOT / "tests" / "test_e2e.py"
     os.execvp(sys.executable, [sys.executable, str(test_file)])
+
+
+def cmd_changeset(args):
+    """Changeset management — sandbox review and approval."""
+    from .formatters import header, kv, fmt, success, error, warn, info, Table
+    from singularity.sinew.changeset import ChangesetManager, MutationStatus
+    
+    workspace = os.path.abspath(getattr(args, 'workspace', '.'))
+    manager = ChangesetManager(workspace)
+    
+    if args.cs_command == "list":
+        header("SINGULARITY [AE] — Changesets")
+        
+        # Show pending (in-memory)
+        pending = manager.list_pending()
+        if pending:
+            print(f"\n  {fmt.BOLD}Pending ({len(pending)}):{fmt.RESET}")
+            for cs in pending:
+                risk = cs._risk_breakdown()
+                risk_str = ""
+                if risk["critical"]: risk_str += f" {fmt.BR_RED}{risk['critical']} critical{fmt.RESET}"
+                if risk["high"]: risk_str += f" {fmt.BR_YELLOW}{risk['high']} high{fmt.RESET}"
+                mut_count = len(cs.mutations)
+                print(f"    📋 {cs.id}  [{cs.agent_role}]  {mut_count} changes{risk_str}")
+                print(f"       {fmt.DIM}{cs.task[:70]}{fmt.RESET}")
+        else:
+            print(f"\n  {fmt.DIM}No pending changesets.{fmt.RESET}")
+        
+        # Show recent records from disk
+        if getattr(args, 'all', False):
+            records = manager.list_records(limit=20)
+            if records:
+                print(f"\n  {fmt.BOLD}Recent ({len(records)}):{fmt.RESET}")
+                for r in records:
+                    status_icon = {
+                        "applied": "✅", "rejected": "❌", 
+                        "rolled_back": "⏪", "failed": "💥",
+                    }.get(r.get("status", ""), "❓")
+                    print(f"    {status_icon} {r['id']}  [{r.get('agent_role', '?')}]  {r.get('status', '?')}  {r.get('mutation_count', 0)} changes")
+        print()
+    
+    elif args.cs_command == "show":
+        header("SINGULARITY [AE] — Changeset Details")
+        
+        cs = manager.get_changeset(args.id)
+        if cs:
+            print(f"\n{cs.summary()}")
+            print()
+            # Show full diffs for each mutation
+            for i, m in enumerate(cs.mutations, 1):
+                risk_color = {"critical": fmt.BR_RED, "high": fmt.BR_YELLOW, "medium": fmt.BR_CYAN, "low": fmt.BR_GREEN}.get(m.risk, "")
+                print(f"  ═══ Mutation {i}/{len(cs.mutations)} [{m.id}] ═══")
+                print(f"  Type: {m.type.value}  Risk: {risk_color}{m.risk.upper()}{fmt.RESET}")
+                
+                if m.type.value == "write":
+                    print(f"  Path: {m.path}")
+                    print(f"  Size: {len(m.content)} bytes")
+                    preview = m.content[:500]
+                    if preview:
+                        print(f"  Preview:")
+                        for line in preview.split('\n')[:15]:
+                            print(f"    {fmt.BR_GREEN}+ {line}{fmt.RESET}")
+                        if len(m.content) > 500:
+                            print(f"    {fmt.DIM}... ({len(m.content) - 500} more bytes){fmt.RESET}")
+                
+                elif m.type.value == "edit":
+                    print(f"  Path: {m.path}")
+                    print(f"  Remove:")
+                    for line in m.old_text.split('\n')[:10]:
+                        print(f"    {fmt.BR_RED}- {line}{fmt.RESET}")
+                    print(f"  Add:")
+                    for line in m.new_text.split('\n')[:10]:
+                        print(f"    {fmt.BR_GREEN}+ {line}{fmt.RESET}")
+                
+                elif m.type.value == "exec":
+                    print(f"  Command: {m.command}")
+                
+                print()
+        else:
+            # Try disk
+            loaded = manager._load_record(args.id)
+            if loaded:
+                print(f"\n  (Loaded from disk — completed changeset)")
+                data = json.loads((manager.changeset_dir / f"{args.id}.json").read_text())
+                print(f"  Status: {data.get('status', '?')}")
+                print(f"  Agent:  {data.get('agent_role', '?')}")
+                print(f"  Task:   {data.get('task', '?')}")
+                print(f"  Changes: {data.get('mutation_count', 0)}")
+                for m in data.get("mutations", []):
+                    print(f"    {m.get('status', '?')} {m.get('type', '?')} {m.get('path', m.get('command', ''))[:60]}")
+            else:
+                error(f"Changeset {args.id} not found")
+        print()
+    
+    elif args.cs_command == "approve":
+        header("SINGULARITY [AE] — Approve Changeset")
+        
+        cs = manager.get_changeset(args.id)
+        if not cs:
+            error(f"Changeset {args.id} not found (must be pending in current session)")
+            sys.exit(1)
+        
+        # Show summary first
+        print(f"\n{cs.summary()}")
+        
+        approved_ids = set(args.only) if args.only else None
+        
+        if approved_ids:
+            print(f"\n  Approving {len(approved_ids)} of {len(cs.mutations)} mutations...")
+        else:
+            print(f"\n  Approving ALL {len(cs.mutations)} mutations...")
+        
+        # Confirm
+        try:
+            answer = input(f"\n  Apply changes? [y/N] ")
+            if answer.lower() not in ("y", "yes"):
+                print("  Aborted.")
+                sys.exit(0)
+        except (EOFError, KeyboardInterrupt):
+            print("\n  Aborted.")
+            sys.exit(0)
+        
+        result = asyncio.run(manager.apply(args.id, approved_ids))
+        
+        if result.get("success"):
+            success(f"Applied {result.get('applied', 0)} mutations")
+            if result.get("failed"):
+                warn(f"Failed: {result['failed']}")
+        else:
+            error(f"Apply failed: {result.get('error', 'unknown')}")
+            if result.get("rolled_back"):
+                warn("Workspace has been rolled back to pre-changeset state")
+            sys.exit(1)
+        print()
+    
+    elif args.cs_command == "reject":
+        header("SINGULARITY [AE] — Reject Changeset")
+        
+        cs = manager.get_changeset(args.id)
+        if not cs:
+            error(f"Changeset {args.id} not found")
+            sys.exit(1)
+        
+        result = asyncio.run(manager.reject(args.id))
+        if result.get("success"):
+            success(f"Rejected {result.get('rejected', 0)} mutations")
+        else:
+            error(f"Reject failed: {result.get('error', 'unknown')}")
+        print()
+    
+    elif args.cs_command == "rollback":
+        header("SINGULARITY [AE] — Rollback Changeset")
+        
+        cs = manager.get_changeset(args.id) 
+        if not cs:
+            error(f"Changeset {args.id} not found")
+            sys.exit(1)
+        
+        if not cs.git_stash_ref:
+            error("No git snapshot available — cannot rollback")
+            sys.exit(1)
+        
+        try:
+            answer = input(f"  Rollback changeset {args.id}? This will revert {len(cs.mutations)} mutations. [y/N] ")
+            if answer.lower() not in ("y", "yes"):
+                print("  Aborted.")
+                sys.exit(0)
+        except (EOFError, KeyboardInterrupt):
+            print("\n  Aborted.")
+            sys.exit(0)
+        
+        result = asyncio.run(manager.rollback(args.id))
+        if result.get("success"):
+            success("Workspace rolled back successfully")
+        else:
+            error(f"Rollback failed: {result.get('error', 'unknown')}")
+        print()
 
 
 # ══════════════════════════════════════════════════════════════

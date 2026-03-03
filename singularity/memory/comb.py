@@ -18,7 +18,7 @@ Architecture:
         - memory.comb.searched → when a search query runs
 
 Design:
-    Plug had aria_memory/flush.py as a standalone script.
+    The previous runtime (Plug) had a standalone flush.py script for memory.
     Singularity has COMB as a native subsystem — imported, initialized,
     and wired into the event bus at boot. No shell-outs. No subprocess.
 """

@@ -31,7 +31,7 @@ Anti-patterns this prevents:
     - "[Budget exhausted — iteration limit reached]" → never shown
     - Lost work at the wall → state is flushed before blink
     - Context amnesia after restart → COMB + session history
-    - Aria's 57-iteration death spiral → blink depth cap
+    - The 57-iteration death spiral from Plug → blink depth cap
 """
 
 from __future__ import annotations

@@ -94,7 +94,7 @@ class Task:
     description: str = ""
     priority: str = "normal"      # low, normal, high, critical
     deadline: Optional[str] = None
-    requester: str = "aria"       # who dispatched this
+    requester: str = "singularity"       # who dispatched this
     context: dict[str, Any] = field(default_factory=dict)
     max_iterations: int = 25
     timestamp: float = field(default_factory=time.time)

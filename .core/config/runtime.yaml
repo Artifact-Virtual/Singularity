@@ -1,7 +1,7 @@
 # Singularity Runtime Configuration
 # Merged from: ~/.plug/config.json + executives/plug-csuite-config.json
 # Imported: Day 19 (2026-03-03)
-# This is what Aria reads at boot.
+# This is what Singularity reads at boot.
 
 # ── Voice (LLM Providers) ──
 voice:
@@ -42,7 +42,7 @@ nerve:
     dm_policy: "deny"
     dm_allowlist:
       - "193011943382974466"       # Ali
-    status_message: "⚡ Aria Online"
+    status_message: "⚡ Singularity Online"
     max_message_length: 2000
     reconnect_delay: 5.0
     max_reconnect_delay: 300.0
@@ -51,7 +51,7 @@ nerve:
     # Token loaded from vault at runtime
 
   whatsapp:
-    enabled: false  # Aria doesn't have WhatsApp — AVA handles that
+    enabled: false  # Singularity doesn't have WhatsApp — AVA handles that
 
 # ── Cortex (Agent Config) ──
 cortex:
@@ -66,12 +66,12 @@ cortex:
 # ── PULSE (Budget) ──
 pulse:
   default_cap: 20
-  expanded_cap: 40        # was 100, reduced after Day 19 Aria loop incident
+  expanded_cap: 40        # was 100, reduced after Day 19 loop incident
   nudge_limit: 2          # max nudge injections per conversation
 
 # ── C-Suite Personas ──
 # Each persona maps a Discord channel to an executive role.
-# The Coordinator (aria/csuite) routes dispatch events to the right persona.
+# The Coordinator (csuite) routes dispatch events to the right persona.
 personas:
   - name: "AVA"
     channel_id: "1473617106158227639"    # #ava-command

@@ -2,7 +2,7 @@
 SINGULARITY — Autonomous Enterprise Runtime
 ============================================
 
-Native AI runtime for Aria.
+Autonomous Enterprise Runtime.
 Built from ground up. Not a patch. Not a clone. An organism.
 
 Subsystems:

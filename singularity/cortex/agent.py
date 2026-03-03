@@ -42,7 +42,7 @@ logger = logging.getLogger("singularity.cortex.agent")
 @dataclass
 class AgentConfig:
     """Configuration for an agent loop instance."""
-    persona_name: str = "aria"
+    persona_name: str = "singularity"
     system_prompt: str = ""
     max_iterations: int = 20
     expanded_iterations: int = 100  # When PULSE auto-expands

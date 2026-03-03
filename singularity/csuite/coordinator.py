@@ -152,7 +152,7 @@ class Coordinator:
         deadline: Optional[str] = None,
         context: Optional[dict[str, Any]] = None,
         max_iterations: int = 25,
-        requester: str = "aria",
+        requester: str = "singularity",
     ) -> DispatchResult:
         """
         Dispatch a task to one or more executives.

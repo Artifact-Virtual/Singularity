@@ -5,7 +5,7 @@
 # Imported from Plug + executives/ + .plug/ on Day 19 (2026-03-03).
 #
 # This is the RUNTIME DATA, not the SOUL.
-# Aria's personality lives in her identity files (SOUL_ARIA.md, IDENTITY_ARIA.md).
+# The runtime's personality lives in its identity/config files.
 # .core/ is everything else — config, dispatch, reports, secrets, infrastructure.
 #
 # Directory Layout:

@@ -100,7 +100,7 @@ async def run_test(name: str, coro) -> TestResult:
 # ══════════════════════════════════════════════════════════════
 
 async def test_event_bus_basic():
-    from aria.bus import EventBus
+    from singularity.bus import EventBus
     bus = EventBus()
     await bus.start()
     
@@ -118,7 +118,7 @@ async def test_event_bus_basic():
 
 
 async def test_event_bus_wildcard():
-    from aria.bus import EventBus
+    from singularity.bus import EventBus
     bus = EventBus()
     await bus.start()
     
@@ -137,7 +137,7 @@ async def test_event_bus_wildcard():
 
 
 async def test_event_bus_once():
-    from aria.bus import EventBus
+    from singularity.bus import EventBus
     bus = EventBus()
     await bus.start()
     
@@ -159,7 +159,7 @@ async def test_event_bus_once():
 # ══════════════════════════════════════════════════════════════
 
 async def test_config_defaults():
-    from aria.config import SingularityConfig
+    from singularity.config import SingularityConfig
     cfg = SingularityConfig()
     assert cfg.pulse.default_cap == 20
     assert cfg.voice.temperature == 0.5
@@ -167,7 +167,7 @@ async def test_config_defaults():
 
 
 async def test_config_load_yaml():
-    from aria.config import load_config
+    from singularity.config import load_config
     with tempfile.NamedTemporaryFile(suffix=".yaml", mode="w", delete=False) as f:
         f.write("voice:\n  temperature: 0.7\npulse:\n  default_cap: 30\n")
         f.flush()
@@ -178,7 +178,7 @@ async def test_config_load_yaml():
 
 
 async def test_config_env_override():
-    from aria.config import load_config
+    from singularity.config import load_config
     os.environ["SINGULARITY_LOG_LEVEL"] = "DEBUG"
     cfg = load_config("/nonexistent/path.yaml")
     assert cfg.log_level == "DEBUG"
@@ -191,8 +191,8 @@ async def test_config_env_override():
 
 async def test_sessions():
     """Test session store."""
-    from aria.memory.sessions import SessionStore, Message
-    from aria.bus import EventBus
+    from singularity.memory.sessions import SessionStore, Message
+    from singularity.bus import EventBus
     bus = EventBus()
     await bus.start()
     
@@ -216,8 +216,8 @@ async def test_sessions():
 
 
 async def test_comb():
-    from aria.memory.comb import CombMemory
-    from aria.bus import EventBus
+    from singularity.memory.comb import CombMemory
+    from singularity.bus import EventBus
     bus = EventBus()
     await bus.start()
     
@@ -241,8 +241,8 @@ async def test_comb():
 # ══════════════════════════════════════════════════════════════
 
 async def test_tool_executor():
-    from aria.sinew.executor import ToolExecutor
-    from aria.bus import EventBus
+    from singularity.sinew.executor import ToolExecutor
+    from singularity.bus import EventBus
     bus = EventBus()
     await bus.start()
     
@@ -277,8 +277,8 @@ async def test_tool_executor():
 # ══════════════════════════════════════════════════════════════
 
 async def test_provider_chain_fallback():
-    from aria.voice.chain import ProviderChain
-    from aria.voice.provider import ChatProvider, ChatMessage, ChatResponse
+    from singularity.voice.chain import ProviderChain
+    from singularity.voice.provider import ChatProvider, ChatMessage, ChatResponse
     
     class FailProvider(ChatProvider):
         def __init__(self):
@@ -310,7 +310,7 @@ async def test_provider_chain_fallback():
 # ══════════════════════════════════════════════════════════════
 
 async def test_context_builder():
-    from aria.cortex.context import ContextAssembler, ChatMessage
+    from singularity.cortex.context import ContextAssembler, ChatMessage
     
     assembler = ContextAssembler(context_budget=100000)
     
@@ -335,8 +335,8 @@ async def test_context_builder():
 # ══════════════════════════════════════════════════════════════
 
 async def test_formatter():
-    from aria.nerve.formatter import format_for_channel
-    from aria.nerve.types import ChannelCapabilities
+    from singularity.nerve.formatter import format_for_channel
+    from singularity.nerve.types import ChannelCapabilities
     
     caps = ChannelCapabilities(max_message_length=2000)
     
@@ -347,8 +347,8 @@ async def test_formatter():
 
 
 async def test_message_split():
-    from aria.nerve.formatter import format_for_channel
-    from aria.nerve.types import ChannelCapabilities
+    from singularity.nerve.formatter import format_for_channel
+    from singularity.nerve.types import ChannelCapabilities
     
     caps = ChannelCapabilities(max_message_length=50)
     text = "A" * 100
@@ -361,7 +361,7 @@ async def test_message_split():
 # ══════════════════════════════════════════════════════════════
 
 async def test_health_tracker():
-    from aria.nerve.types import HealthTracker, AdapterState
+    from singularity.nerve.types import HealthTracker, AdapterState
     
     ht = HealthTracker()
     assert ht.state == AdapterState.DISCONNECTED
@@ -384,8 +384,8 @@ async def test_health_tracker():
 # ══════════════════════════════════════════════════════════════
 
 async def test_scheduler():
-    from aria.pulse.scheduler import Scheduler, JobConfig, JobType
-    from aria.bus import EventBus
+    from singularity.pulse.scheduler import Scheduler, JobConfig, JobType
+    from singularity.bus import EventBus
     bus = EventBus()
     await bus.start()
     
@@ -424,7 +424,7 @@ async def test_scheduler():
 # ══════════════════════════════════════════════════════════════
 
 async def test_role_registry():
-    from aria.csuite.roles import RoleRegistry, RoleType
+    from singularity.csuite.roles import RoleRegistry, RoleType
     
     reg = RoleRegistry(enterprise="TestCorp", industry="fintech")
     
@@ -446,7 +446,7 @@ async def test_role_registry():
 
 
 async def test_role_spawn():
-    from aria.csuite.roles import RoleRegistry
+    from singularity.csuite.roles import RoleRegistry
     
     reg = RoleRegistry(enterprise="TestCorp")
     role = reg.spawn_role({
@@ -460,7 +460,7 @@ async def test_role_spawn():
 
 
 async def test_role_serialization():
-    from aria.csuite.roles import RoleRegistry
+    from singularity.csuite.roles import RoleRegistry
     
     reg = RoleRegistry(enterprise="TestCorp")
     reg.spawn_role({"role": "cto", "title": "CTO"})
@@ -475,7 +475,7 @@ async def test_role_serialization():
 
 
 async def test_role_matching():
-    from aria.csuite.roles import RoleRegistry
+    from singularity.csuite.roles import RoleRegistry
     
     reg = RoleRegistry(enterprise="TestCorp")
     reg.spawn_role({"role": "cto", "title": "CTO"})
@@ -491,7 +491,7 @@ async def test_role_matching():
 # ══════════════════════════════════════════════════════════════
 
 async def test_poa_lifecycle():
-    from aria.poa.manager import POAManager, POAStatus
+    from singularity.poa.manager import POAManager, POAStatus
     
     with tempfile.TemporaryDirectory() as tmpdir:
         mgr = POAManager(workspace=Path(tmpdir))
@@ -526,7 +526,7 @@ async def test_poa_lifecycle():
 
 
 async def test_poa_persistence():
-    from aria.poa.manager import POAManager, POAStatus
+    from singularity.poa.manager import POAManager, POAStatus
     
     with tempfile.TemporaryDirectory() as tmpdir:
         # Create and save
@@ -541,8 +541,8 @@ async def test_poa_persistence():
 
 
 async def test_poa_audit_runtime():
-    from aria.poa.manager import POAConfig, Endpoint
-    from aria.poa.runtime import POARuntime
+    from singularity.poa.manager import POAConfig, Endpoint
+    from singularity.poa.runtime import POARuntime
     
     config = POAConfig(
         product_name="Test",
@@ -560,8 +560,8 @@ async def test_poa_audit_runtime():
 
 
 async def test_poa_audit_save():
-    from aria.poa.manager import POAConfig, Endpoint
-    from aria.poa.runtime import POARuntime
+    from singularity.poa.manager import POAConfig, Endpoint
+    from singularity.poa.runtime import POARuntime
     
     config = POAConfig(
         product_name="SaveTest",
@@ -582,7 +582,7 @@ async def test_poa_audit_save():
 
 async def test_scaling_agriculture():
     """Singularity scales for an agriculture enterprise."""
-    from aria.csuite.roles import RoleRegistry
+    from singularity.csuite.roles import RoleRegistry
     
     reg = RoleRegistry(enterprise="GreenFields AgriTech", industry="agriculture")
     proposals = reg.propose_roles({
@@ -606,7 +606,7 @@ async def test_scaling_agriculture():
 
 async def test_scaling_fintech():
     """Singularity scales for a fintech enterprise."""
-    from aria.csuite.roles import RoleRegistry
+    from singularity.csuite.roles import RoleRegistry
     
     reg = RoleRegistry(enterprise="PayScale Financial", industry="fintech")
     proposals = reg.propose_roles({
@@ -630,7 +630,7 @@ async def test_scaling_fintech():
 
 async def test_scaling_healthcare():
     """Singularity scales for a healthcare enterprise."""
-    from aria.csuite.roles import RoleRegistry
+    from singularity.csuite.roles import RoleRegistry
     
     reg = RoleRegistry(enterprise="MedCore Health", industry="healthcare")
     proposals = reg.propose_roles({
@@ -653,7 +653,7 @@ async def test_scaling_healthcare():
 
 async def test_scaling_space_tech():
     """Singularity scales for a space tech company."""
-    from aria.csuite.roles import RoleRegistry
+    from singularity.csuite.roles import RoleRegistry
     
     reg = RoleRegistry(enterprise="Orbital Dynamics", industry="aerospace")
     proposals = reg.propose_roles({
@@ -681,7 +681,7 @@ async def test_scaling_space_tech():
 
 async def test_scaling_real_estate():
     """Singularity scales for a real estate company."""
-    from aria.csuite.roles import RoleRegistry
+    from singularity.csuite.roles import RoleRegistry
     
     reg = RoleRegistry(enterprise="PropVault Realty", industry="real_estate")
     proposals = reg.propose_roles({
@@ -702,7 +702,7 @@ async def test_scaling_real_estate():
 
 async def test_scaling_solo_founder():
     """Singularity scales for a solo founder (minimal)."""
-    from aria.csuite.roles import RoleRegistry
+    from singularity.csuite.roles import RoleRegistry
     
     reg = RoleRegistry(enterprise="Solo Studio", industry="saas")
     proposals = reg.propose_roles({
@@ -726,7 +726,7 @@ async def test_scaling_solo_founder():
 # ══════════════════════════════════════════════════════════════
 
 async def test_vitals():
-    from aria.immune.vitals import SystemVitals
+    from singularity.immune.vitals import SystemVitals
     
     vitals = SystemVitals()
     assert vitals.disk_used_pct >= 0
@@ -741,7 +741,7 @@ async def test_vitals():
 
 async def test_auditor_scanner():
     """Test workspace scanning on a temp directory."""
-    from aria.auditor import WorkspaceScanner
+    from singularity.auditor import WorkspaceScanner
     
     # Create a temp workspace with some projects
     tmp = Path(tempfile.mkdtemp())
@@ -792,7 +792,7 @@ async def test_auditor_scanner():
 
 async def test_auditor_analyzer():
     """Test analyzer scoring and recommendations."""
-    from aria.auditor import WorkspaceScanner, Analyzer
+    from singularity.auditor import WorkspaceScanner, Analyzer
     
     tmp = Path(tempfile.mkdtemp())
     try:
@@ -823,7 +823,7 @@ async def test_auditor_analyzer():
 
 async def test_auditor_report():
     """Test report generation."""
-    from aria.auditor import WorkspaceScanner, Analyzer, generate_report, report_to_markdown
+    from singularity.auditor import WorkspaceScanner, Analyzer, generate_report, report_to_markdown
     
     tmp = Path(tempfile.mkdtemp())
     try:
@@ -854,9 +854,9 @@ async def test_auditor_report():
 
 async def test_cli_imports():
     """Test all CLI modules import cleanly."""
-    from aria.cli.main import main
-    from aria.cli.wizard import InitWizard
-    from aria.cli.formatters import header, success, info, warn, error, banner, section, kv, dim
+    from singularity.cli.main import main
+    from singularity.cli.wizard import InitWizard
+    from singularity.cli.formatters import header, success, info, warn, error, banner, section, kv, dim
     
     # Test formatters produce strings
     assert isinstance(success("ok"), str)

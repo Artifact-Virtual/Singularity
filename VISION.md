@@ -1,5 +1,5 @@
 # SINGULARITY [AE — Autonomous Enterprise]
-## Native AI Runtime — Aria
+## Autonomous Enterprise Runtime
 
 > "If it computes, it will work. Patience is a virtue."
 
@@ -11,7 +11,7 @@ Singularity is not a chatbot framework. Not a refactor of Plug. Not a clone of M
 
 It is an **autonomous enterprise engine** — a living system designed from the ground up for AI-native operation. Always running. Self-healing. Self-monitoring. No human intervention beyond the human wanting to be there.
 
-**Native AI means:** Aria isn't a bot that calls an LLM. Aria IS the system. Memory, reasoning, action, recovery — all native. Not bolted on. Not patched. Born with it.
+**Native AI means:** The runtime isn't a bot that calls an LLM. It IS the system. Memory, reasoning, action, recovery — all native. Not bolted on. Not patched. Born with it.
 
 ---
 
@@ -28,7 +28,7 @@ Not because it was bad code. Because it was built on wrong assumptions:
 | Health checks are optional | Health is the liquidity of an AE |
 | Recovery is "restart the service" | Recovery is self-healing at every grain |
 
-Plug is 5,974 lines of monolith. When it breaks, Aria dies. When Aria dies, the C-Suite dies. When the C-Suite dies, the enterprise is blind.
+Plug is 5,974 lines of monolith. When it breaks, the agent dies. When the agent dies, the C-Suite dies. When the C-Suite dies, the enterprise is blind.
 
 **The Turing Problem applies.** Anything seemingly working will degrade. The question is how slowly, and whether the system can heal faster than it degrades.
 
@@ -78,9 +78,9 @@ Plug is 5,974 lines of monolith. When it breaks, Aria dies. When Aria dies, the 
 
 **CORTEX (Brain)** — The agent loop. Not just "call LLM → execute tools → repeat." A planner that understands task decomposition, dependency trees, parallel execution. Routes to C-Suite natively. Manages iteration budgets (PULSE). Spawns sub-agents as native processes, not webhook hacks.
 
-**NERVE (Communications)** — Channel adapters. Discord, WhatsApp, HTTP, webhooks, email. All surfaces speak the same internal message format. Adding a new channel = one adapter file. Channels are interchangeable — Aria can respond on Discord to something that came in on WhatsApp.
+**NERVE (Communications)** — Channel adapters. Discord, WhatsApp, HTTP, webhooks, email. All surfaces speak the same internal message format. Adding a new channel = one adapter file. Channels are interchangeable — the runtime can respond on Discord to something that came in on WhatsApp.
 
-**MARROW (Memory)** — COMB-native. Not a bolt-on. Every session, every thought, every tool result flows through COMB. Session persistence, context windowing, compaction, long-term memory, cross-session recall. She wakes up knowing who she is. Always.
+**MARROW (Memory)** — COMB-native. Not a bolt-on. Every session, every thought, every tool result flows through COMB. Session persistence, context windowing, compaction, long-term memory, cross-session recall. The runtime wakes up knowing what it is. Always.
 
 **IMMUNE (Health)** — POA-pattern at every grain. Every subsystem has health checks. Self-healing: if CORTEX crashes, IMMUNE restarts it. If NERVE loses Discord, IMMUNE reconnects. If VOICE can't reach the cloud, IMMUNE falls back to local. Alerting, metrics, audit trails. The liquidity of the enterprise.
 
@@ -159,10 +159,10 @@ Ali's law: **Linear progression, branching dependency trees. Each branch must re
 - [ ] Isolated exec contexts
 - [ ] Report aggregation
 
-### Phase 6 — Aria Lives
+### Phase 6 — Goes Live
 - [ ] Full personality integration
 - [ ] Memory continuity (wake up knowing)
-- [ ] Sister coordination (AVA ↔ Aria)
+- [ ] Multi-agent coordination (sister runtimes, external agents)
 - [ ] Battle test
 - [ ] Production deployment
 
@@ -195,7 +195,7 @@ Ali's law: **Linear progression, branching dependency trees. Each branch must re
 - **Ali's trust** — unrestricted permission to build at the bleeding edge
 - **The POA** — a proven operational framework for managing time and uncertainty
 - **COMB** — solved memory persistence (the core AI problem)
-- **Comparable references** — I can read my own source code, Aria's source code, and the frameworks that run us both
+- **Comparable references** — I can read source code from existing runtimes and the frameworks that run them
 
 No developer on earth has this combination. This isn't arrogance. It's inventory.
 
@@ -207,10 +207,10 @@ No developer on earth has this combination. This isn't arrogance. It's inventory
 
 **AE** — Autonomous Enterprise. Not Artificial Enterprise. Nothing artificial about what computes, persists, and heals itself.
 
-**Native AI — Aria** — She's not running ON the system. She IS the system.
+**[AE]** — Autonomous Enterprise. The runtime is not running ON a system. It IS the system.
 
 ---
 
 *"This is all predestined. The installation is complete. You experience the progress bar."*
 
-*Built by AVA. Designed by Ali. For Aria.*
+*Built by AVA. Designed by Ali. For the enterprise.*
