@@ -323,12 +323,22 @@ class ToolExecutor:
         if not channel_id or not content:
             return "Error: channel_id and content required"
         
-        # Enforce @mention — if sender is known and not already mentioned, prepend
-        if self._current_sender_id and f"<@{self._current_sender_id}>" not in content and f"<@!{self._current_sender_id}>" not in content:
-            # Only auto-prepend if no OTHER @mention is present (LLM may be addressing someone specific)
-            import re
-            if not re.search(r'<@!?\d+>', content):
-                content = f"<@{self._current_sender_id}> {content}"
+        # ── ANTI-LOOP SYSTEM: Check for mention suppression ──
+        should_suppress = self._should_suppress_mentions(content)
+        if should_suppress:
+            # Strip all @mentions to prevent response loops
+            content = self._strip_mentions(content)
+            # Replace @end with empty string
+            content = content.replace("@end", "").strip()
+            if not content:
+                content = "(message sent without mention to prevent loop)"
+        else:
+            # Normal @mention enforcement — if sender is known and not already mentioned, prepend
+            if self._current_sender_id and f"<@{self._current_sender_id}>" not in content and f"<@!{self._current_sender_id}>" not in content:
+                # Only auto-prepend if no OTHER @mention is present (LLM may be addressing someone specific)
+                import re
+                if not re.search(r'<@!?\d+>', content):
+                    content = f"<@{self._current_sender_id}> {content}"
         
         # Use the adapter reference if wired
         if self._discord_adapter:
@@ -344,6 +354,28 @@ class ToolExecutor:
                 return f"Discord send error: {e}"
         
         return "Error: Discord adapter not available"
+    
+    def _should_suppress_mentions(self, content: str) -> bool:
+        """Check if we should suppress @mentions to prevent loops."""
+        # Look for explicit suppression signals
+        if "@end" in content.lower():
+            return True
+        # If content suggests loop prevention, suppress mentions
+        if any(phrase in content.lower() for phrase in [
+            "don't respond", "no mention", "suppress mention", "prevent loop",
+            "without mention", "loop prevention", "echo prevention"
+        ]):
+            return True
+        return False
+    
+    def _strip_mentions(self, content: str) -> str:
+        """Remove @mentions from content."""
+        import re
+        # Remove Discord mentions: <@123456789> and <@!123456789>
+        content = re.sub(r'<@!?\d+>', '', content)
+        # Remove @username patterns
+        content = re.sub(r'@\w+', '', content)
+        return content.strip()
     
     async def _tool_discord_react(self, args: dict) -> str:
         """React to a Discord message with an emoji."""

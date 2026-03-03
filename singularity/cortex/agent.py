@@ -262,6 +262,27 @@ class AgentLoop:
                 error=str(e),
             )
     
+    def _should_suppress_mention(self, content: str, target_user_id: str) -> bool:
+        """Check if we should suppress @mentions to prevent loops."""
+        # Look for explicit suppression signals in content
+        if "@end" in content.lower():
+            return True
+        # If responding to a coordination message, suppress mentions
+        if any(phrase in content.lower() for phrase in [
+            "loop", "echo", "don't respond", "no mention", "suppress", "quiet"
+        ]):
+            return True
+        return False
+    
+    def _strip_mentions(self, content: str) -> str:
+        """Remove @mentions from content to prevent response loops."""
+        import re
+        # Remove Discord mentions: <@123456789>
+        content = re.sub(r'<@!?\d+>', '', content)
+        # Remove @username patterns
+        content = re.sub(r'@\w+', '', content)
+        return content.strip()
+
     async def _execute_tools(self, tool_calls: list[dict]) -> list[str]:
         """Execute tool calls, optionally in parallel.
         

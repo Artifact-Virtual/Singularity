@@ -41,12 +41,22 @@ logger = logging.getLogger("singularity.runtime")
 def _ensure_mention(text: str, sender_id: str | None, channel_type: str = "discord") -> str:
     """Ensure the response contains an @mention of the sender (Discord only).
     
-    If the text already has a <@sender_id> mention, return as-is.
-    Otherwise prepend <@sender_id> to the response.
+    LOOP PREVENTION: If text contains @end or @drop, strip ALL mentions to break cross-bot loops.
+    Otherwise, if no mention exists, prepend sender mention.
     This is a structural enforcement — the LLM can't forget it.
     """
     if channel_type != "discord" or not sender_id:
         return text
+    
+    # CHECK FOR LOOP BREAKERS — strip mentions to drop conversation
+    if "@end" in text.lower() or "@drop" in text.lower():
+        # Strip ALL @mentions to break cross-bot loops
+        import re
+        text = re.sub(r'<@!?\d+>', '', text).strip()
+        # Clean up any resulting double spaces
+        text = re.sub(r'\s+', ' ', text).strip()
+        return text
+    
     mention = f"<@{sender_id}>"
     # Check if already mentioned anywhere in the text
     if mention in text:
