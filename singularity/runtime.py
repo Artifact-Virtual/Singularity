@@ -181,6 +181,10 @@ class Runtime:
         logger.info("[8/12] Initializing scheduler (PULSE)...")
         await self._boot_pulse()
         
+        # Phase 8.5: POA Monitoring (requires PULSE)
+        logger.info("[8.5/12] Initializing POA monitoring...")
+        await self._boot_poa_monitoring()
+
         # Phase 9: Health + Immune
         logger.info("[9/12] Initializing health monitoring (IMMUNE)...")
         await self._boot_immune()
@@ -591,6 +595,145 @@ class Runtime:
         
         await self.health.start(check_interval=self.config.immune.check_interval)
         logger.info("  PULSE ready (scheduler + health monitor)")
+    
+    async def _boot_poa_monitoring(self) -> None:
+        """Register all active POAs as PULSE scheduler jobs."""
+        from .poa.manager import POAManager
+        from .poa.runtime import POARuntime
+        from .pulse.scheduler import JobConfig, JobType
+        
+        # Check both enterprise and local workspaces for POAs
+        poa_dirs = []
+        enterprise_poa = Path("/home/adam/workspace/enterprise/.singularity/poas")
+        local_poa = Path(self.config.tools.workspace) / ".singularity" / "poas"
+        
+        if enterprise_poa.exists():
+            poa_dirs.append(enterprise_poa.parent)
+        if local_poa.exists() and local_poa != enterprise_poa:
+            poa_dirs.append(local_poa.parent)
+        
+        if not poa_dirs:
+            logger.info("  POA: No POA directories found, skipping")
+            return
+        
+        total_poas = 0
+        total_jobs = 0
+        
+        for workspace in poa_dirs:
+            manager = POAManager(workspace)
+            active = manager.list_active()
+            total_poas += len(active)
+            
+            for config in active:
+                interval = self._parse_cron_interval(config.audit_schedule)
+                
+                job = JobConfig(
+                    id=f"poa-audit-{config.product_id}",
+                    name=f"POA Audit: {config.product_name}",
+                    job_type=JobType.INTERVAL,
+                    interval_seconds=interval,
+                    emit_topic="poa.audit.trigger",
+                    emit_data={
+                        "product_id": config.product_id,
+                        "product_name": config.product_name,
+                        "workspace": str(workspace),
+                    },
+                )
+                self.scheduler.add(job)
+                total_jobs += 1
+        
+        # Wire the audit trigger handler (once, outside the loop)
+        @self.bus.on("poa.audit.trigger")
+        async def on_poa_audit(event):
+                """Execute POA audit when PULSE fires the job."""
+                product_id = event.data.get("product_id")
+                ws = Path(event.data.get("workspace", ""))
+                
+                try:
+                    mgr = POAManager(ws)
+                    cfg = mgr.get(product_id)
+                    if not cfg:
+                        logger.warning(f"POA audit: product {product_id} not found")
+                        return
+                    
+                    report = POARuntime.run_audit(cfg)
+                    POARuntime.save_audit(report, ws / "poas")
+                    
+                    # Emit result for escalation / alerting
+                    await self.bus.emit("poa.audit.complete", {
+                        "product_id": product_id,
+                        "status": report.overall_status,
+                        "passed": report.passed,
+                        "failed": report.failed,
+                        "criticals": report.criticals,
+                        "duration_ms": report.duration_ms,
+                    })
+                    
+                    # If RED, emit alert
+                    if report.overall_status == "red":
+                        await self.bus.emit("poa.alert", {
+                            "product_id": product_id,
+                            "product_name": cfg.product_name,
+                            "status": "red",
+                            "criticals": report.criticals,
+                            "failed_checks": [
+                                c.to_dict() for c in report.checks if not c.passed
+                            ],
+                        })
+                        logger.warning(f"POA ALERT: {cfg.product_name} is RED ({report.criticals} critical)")
+                    else:
+                        logger.info(f"POA audit: {cfg.product_name} → {report.overall_status.upper()}")
+                        
+                except Exception as e:
+                    logger.error(f"POA audit failed for {product_id}: {e}")
+        
+        # Also run first audit immediately for all active POAs
+        if total_poas > 0:
+            asyncio.create_task(self._run_initial_poa_audits(poa_dirs))
+        
+        logger.info(f"  POA ready ({total_poas} products, {total_jobs} audit jobs scheduled)")
+    
+    async def _run_initial_poa_audits(self, poa_dirs: list[Path]) -> None:
+        """Run first round of POA audits immediately after boot."""
+        from .poa.manager import POAManager
+        from .poa.runtime import POARuntime
+        
+        await asyncio.sleep(5)  # Let boot finish first
+        
+        green = yellow = red = 0
+        for workspace in poa_dirs:
+            manager = POAManager(workspace)
+            for config in manager.list_active():
+                try:
+                    report = POARuntime.run_audit(config)
+                    POARuntime.save_audit(report, workspace / "poas")
+                    if report.overall_status == "green":
+                        green += 1
+                    elif report.overall_status == "yellow":
+                        yellow += 1
+                    else:
+                        red += 1
+                except Exception as e:
+                    logger.error(f"Initial POA audit failed for {config.product_name}: {e}")
+                    red += 1
+        
+        logger.info(f"POA initial sweep: 🟢{green} 🟡{yellow} 🔴{red}")
+        await self.bus.emit("poa.initial_sweep.complete", {
+            "green": green, "yellow": yellow, "red": red,
+        })
+    
+    @staticmethod
+    def _parse_cron_interval(cron_expr: str) -> float:
+        """Parse simplified cron expression to seconds. Default: 4 hours."""
+        try:
+            parts = cron_expr.split()
+            if len(parts) >= 2:
+                hour_part = parts[1]
+                if hour_part.startswith("*/"):
+                    return int(hour_part[2:]) * 3600
+            return 4 * 3600  # Default: every 4 hours
+        except Exception:
+            return 4 * 3600
     
     async def _boot_immune(self) -> None:
         """Initialize immune system."""

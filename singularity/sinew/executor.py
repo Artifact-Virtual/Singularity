@@ -758,7 +758,7 @@ class ToolExecutor:
         from singularity.poa.setup import SetupFlow
         import json as _json
         
-        workspace = args.get("workspace", self._workspace)
+        workspace = args.get("workspace", str(self.workspace))
         auto_approve = args.get("auto_approve", False)
         
         try:
@@ -839,42 +839,111 @@ class ToolExecutor:
         
         action = args.get("action", "list")
         product_id = args.get("product_id", "")
+        workspace_arg = args.get("workspace", "")
         
-        sg_dir = Path(self._workspace) / ".singularity"
-        if not sg_dir.exists():
-            return "Error: workspace not initialized (.singularity not found)"
+        # Check specified workspace, enterprise workspace, then own workspace
+        sg_dirs = []
+        if workspace_arg:
+            p = Path(workspace_arg) / ".singularity"
+            if p.exists():
+                sg_dirs.append(p)
+        enterprise = Path("/home/adam/workspace/enterprise/.singularity")
+        if enterprise.exists():
+            sg_dirs.append(enterprise)
+        own = Path(str(self.workspace)) / ".singularity"
+        if own.exists() and own not in sg_dirs:
+            sg_dirs.append(own)
         
-        mgr = POAManager(sg_dir)
+        if not sg_dirs:
+            return "Error: no workspace with .singularity found"
+        
+        # Use first available, but merge for list/status/audit-all
+        sg_dir = sg_dirs[0]
+        
+        # Merge managers from all workspaces
+        all_managers = [POAManager(d) for d in sg_dirs]
+        mgr = all_managers[0]  # Primary
         
         if action == "list":
-            poas = mgr.list_all()
-            if not poas:
-                return "No POAs configured."
+            seen = set()
             lines = ["📋 POA List:"]
-            for p in poas:
-                icon = {"active": "🟢", "proposed": "📋", "paused": "⏸️", "retired": "💀"}.get(p.status.value, "⚪")
-                ep_info = f" ({len(p.endpoints)} endpoints)" if p.endpoints else ""
-                svc_info = f" svc:{p.service_name}" if p.service_name else ""
-                lines.append(f"  {icon} {p.product_name} ({p.product_id}) [{p.status.value}]{ep_info}{svc_info}")
+            for m in all_managers:
+                for p in m.list_all():
+                    if p.product_id in seen:
+                        continue
+                    seen.add(p.product_id)
+                    icon = {"active": "🟢", "proposed": "📋", "paused": "⏸️", "retired": "💀"}.get(p.status.value, "⚪")
+                    ep_info = f" ({len(p.endpoints)} endpoints)" if p.endpoints else ""
+                    svc_info = f" svc:{p.service_name}" if p.service_name else ""
+                    lines.append(f"  {icon} {p.product_name} ({p.product_id}) [{p.status.value}]{ep_info}{svc_info}")
+            if len(lines) == 1:
+                return "No POAs configured."
+            lines.insert(1, f"**Total:** {len(seen)}")
             return "\n".join(lines)
         
         elif action == "status":
-            summary = mgr.status_summary()
-            lines = [f"📊 POA Status — {summary.get('total', 0)} total"]
+            total = 0
+            counts = {}
+            for m in all_managers:
+                s = m.status_summary()
+                total += s.get("total", 0)
+                for k, v in s.items():
+                    if k != "total":
+                        counts[k] = counts.get(k, 0) + v
+            lines = [f"📊 POA Status — {total} total"]
             for s in ["active", "proposed", "paused", "retired", "error"]:
-                count = summary.get(s, 0)
+                count = counts.get(s, 0)
                 if count:
                     lines.append(f"  {s}: {count}")
             return "\n".join(lines)
         
         elif action == "audit":
             if not product_id:
-                return "Error: product_id required for audit"
-            config = mgr.get(product_id)
+                # Audit ALL active POAs across all workspaces
+                all_active = []
+                workspace_map = {}
+                seen = set()
+                for m_idx, m in enumerate(all_managers):
+                    for config in m.list_active():
+                        if config.product_id not in seen:
+                            seen.add(config.product_id)
+                            all_active.append(config)
+                            workspace_map[config.product_id] = sg_dirs[m_idx]
+                if not all_active:
+                    return "No active POAs to audit."
+                lines = ["# POA Full Audit Report", f"**Time:** {__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", f"**Products:** {len(all_active)}", ""]
+                green = yellow = red = 0
+                for config in all_active:
+                    ws = workspace_map[config.product_id]
+                    try:
+                        report = POARuntime.run_audit(config)
+                        POARuntime.save_audit(report, ws / "poas")
+                        icon = {"green": "🟢", "yellow": "🟡", "red": "🔴"}.get(report.overall_status, "⚪")
+                        failed_detail = ""
+                        if report.failed > 0:
+                            failed_checks = [c for c in report.checks if not c.passed]
+                            failed_detail = " — " + "; ".join(f"{c.name}: {c.message[:60]}" for c in failed_checks)
+                        lines.append(f"{icon} **{config.product_name}** {report.passed}/{len(report.checks)} checks ({report.duration_ms:.0f}ms){failed_detail}")
+                        if report.overall_status == "green": green += 1
+                        elif report.overall_status == "yellow": yellow += 1
+                        else: red += 1
+                    except Exception as e:
+                        lines.append(f"🔴 **{config.product_name}** — audit error: {e}")
+                        red += 1
+                lines.insert(3, f"**Summary:** 🟢{green} 🟡{yellow} 🔴{red}")
+                return "\n".join(lines)
+            # Single product audit — find across managers
+            config = None
+            found_dir = sg_dir
+            for m_idx, m in enumerate(all_managers):
+                config = m.get(product_id)
+                if config:
+                    found_dir = sg_dirs[m_idx]
+                    break
             if not config:
                 return f"Error: POA '{product_id}' not found"
             report = POARuntime.run_audit(config)
-            POARuntime.save_audit(report, sg_dir / "poas")
+            POARuntime.save_audit(report, found_dir / "poas")
             return report.to_markdown()
         
         elif action == "kill":
