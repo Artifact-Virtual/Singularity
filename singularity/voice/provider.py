@@ -15,6 +15,7 @@ Design:
 
 from __future__ import annotations
 
+import json
 import logging
 import time
 from abc import ABC, abstractmethod
@@ -40,7 +41,15 @@ class ChatMessage:
         if self.tool_call_id:
             d["tool_call_id"] = self.tool_call_id
         if self.tool_calls:
-            d["tool_calls"] = self.tool_calls
+            # Ensure arguments are JSON strings (OpenAI API requirement)
+            serialized = []
+            for tc in self.tool_calls:
+                tc_copy = {**tc}
+                fn = tc_copy.get("function", {})
+                if fn and not isinstance(fn.get("arguments"), str):
+                    tc_copy = {**tc_copy, "function": {**fn, "arguments": json.dumps(fn["arguments"])}}
+                serialized.append(tc_copy)
+            d["tool_calls"] = serialized
         return d
 
 
@@ -155,12 +164,17 @@ class ChatProvider(ABC):
             tool_calls = []
             for i in sorted(tc_accum.keys()):
                 tc = tc_accum[i]
+                args_str = "".join(tc["function"]["arguments_parts"])
+                try:
+                    args_parsed = json.loads(args_str) if args_str.strip() else {}
+                except json.JSONDecodeError:
+                    args_parsed = args_str  # fallback to string
                 tool_calls.append({
                     "id": tc["id"],
                     "type": tc["type"],
                     "function": {
                         "name": tc["function"]["name"],
-                        "arguments": "".join(tc["function"]["arguments_parts"]),
+                        "arguments": args_parsed,
                     },
                 })
             if finish_reason == "stop":

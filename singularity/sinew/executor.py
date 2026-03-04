@@ -476,11 +476,21 @@ class ToolExecutor:
         except Exception as e:
             return f"Memory search error: {e}"
     
+    # ── C-Suite Executive Discord Channel Map ──
+    # Maps executive role names to their dedicated Discord channel IDs
+    CSUITE_CHANNEL_MAP: dict[str, str] = {
+        "cto":  "1478716101289447527",
+        "coo":  "1478716105458450473",
+        "cfo":  "1478716109053104228",
+        "ciso": "1478716112827842661",
+    }
+    CSUITE_DISPATCH_CHANNEL: str = "1478716096667189292"
+
     async def _tool_csuite_dispatch(self, args: dict) -> str:
         """Dispatch a task to the C-Suite executives.
         
         Routes tasks to CTO/COO/CFO/CISO through the native Coordinator.
-        No webhooks. No Discord. Direct event bus dispatch.
+        Results are forwarded to each executive's dedicated Discord channel.
         """
         if not self._csuite_dispatcher:
             return "Error: C-Suite not initialized. Check config csuite.enabled."
@@ -514,6 +524,81 @@ class ToolExecutor:
                     lines.append(f"  Response: {t.response[:500]}")
                 if t.error:
                     lines.append(f"  Error: {t.error[:200]}")
+            
+            # ── Forward results to dedicated executive Discord channels ──
+            # NOTE: Webhook-based reporting is now handled by coordinator.py → WebhookReporter
+            # The adapter-based forwarding below is disabled to prevent double-posting.
+            # await self._forward_csuite_to_discord(result, description)
+            
             return "\n".join(lines)
         except Exception as e:
             return f"C-Suite dispatch error: {e}"
+
+    async def _forward_csuite_to_discord(self, result: Any, task_description: str) -> None:
+        """Forward C-Suite dispatch results to dedicated executive Discord channels.
+        
+        Each executive's result gets posted to their own channel.
+        A summary is posted to the #dispatch channel.
+        """
+        if not self._discord_adapter:
+            logger.warning("Cannot forward C-Suite results — Discord adapter not available")
+            return
+        
+        from ..nerve.types import OutboundMessage
+        
+        # Post individual results to each executive's channel
+        for t in result.tasks:
+            role_name = t.role.value.lower()
+            channel_id = self.CSUITE_CHANNEL_MAP.get(role_name)
+            if not channel_id:
+                continue
+            
+            icon = "✅" if t.status.value == "complete" else "❌" if t.status.value == "failed" else "⏱️"
+            
+            # Build the message for this executive's channel
+            msg_lines = [
+                f"{icon} **{role_name.upper()} — Dispatch {result.dispatch_id}**",
+                f"**Task:** {task_description[:200]}",
+                f"**Status:** {t.status.value} | {t.iterations_used} iterations | {t.duration_seconds:.1f}s",
+                "",
+            ]
+            
+            if t.response:
+                # Cap at 1800 chars to stay under Discord's 2000 limit
+                response_text = t.response[:1800]
+                if len(t.response) > 1800:
+                    response_text += "\n... (truncated)"
+                msg_lines.append(response_text)
+            
+            if t.error:
+                msg_lines.append(f"\n⚠️ **Error:** {t.error[:300]}")
+            
+            msg = "\n".join(msg_lines)
+            
+            try:
+                await self._discord_adapter.send(
+                    channel_id, OutboundMessage(content=msg)
+                )
+                logger.info(f"C-Suite result forwarded to #{role_name} channel ({channel_id})")
+            except Exception as e:
+                logger.error(f"Failed to forward {role_name} result to Discord: {e}")
+        
+        # Post summary to #dispatch channel
+        summary_lines = [
+            f"📋 **Dispatch {result.dispatch_id}** — {len(result.tasks)} task(s), {result.duration:.1f}s",
+            f"**Task:** {task_description[:200]}",
+            "",
+        ]
+        for t in result.tasks:
+            icon = "✅" if t.status.value == "complete" else "❌" if t.status.value == "failed" else "⏱️"
+            summary_lines.append(f"{icon} **{t.role.value.upper()}**: {t.status.value} ({t.duration_seconds:.1f}s)")
+        
+        summary = "\n".join(summary_lines)
+        
+        try:
+            await self._discord_adapter.send(
+                self.CSUITE_DISPATCH_CHANNEL, OutboundMessage(content=summary)
+            )
+            logger.info(f"Dispatch summary forwarded to #dispatch channel")
+        except Exception as e:
+            logger.error(f"Failed to forward dispatch summary to Discord: {e}")

@@ -381,6 +381,7 @@ class CopilotProxyProvider(ChatProvider):
         endpoint = f"{self._proxy_endpoint.rstrip('/')}/chat/completions"
         headers = {"Content-Type": "application/json", **COPILOT_HEADERS}
         
+        chunk_count = 0
         try:
             async with self._session.post(endpoint, json=body, headers=headers) as resp:
                 if resp.status != 200:
@@ -388,7 +389,11 @@ class CopilotProxyProvider(ChatProvider):
                     raise RuntimeError(f"Proxy API error {resp.status}: {text}")
                 
                 async for chunk in self._stream_sse_response(resp):
+                    chunk_count += 1
                     yield chunk
+            
+            if chunk_count == 0:
+                logger.warning(f"Proxy returned 200 but 0 chunks — possible silent failure. Messages: {len(messages)}, model: {body.get('model')}")
             
             self.record_success()
         except Exception as e:

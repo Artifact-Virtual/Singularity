@@ -35,6 +35,8 @@ if TYPE_CHECKING:
     from ..voice.chain import ProviderChain
     from ..sinew.executor import ToolExecutor
 
+from ..voice.provider import ChatMessage
+
 logger = logging.getLogger("singularity.csuite.executive")
 
 
@@ -194,6 +196,7 @@ class Executive:
             all_findings: list[str] = []
             all_actions: list[str] = []
             files_modified: list[str] = []
+            llm_error: str | None = None
 
             # Agent loop — think/act/observe
             for i in range(task.max_iterations):
@@ -206,44 +209,50 @@ class Executive:
                         tools=self._get_scoped_tool_definitions(),
                     )
                 except Exception as e:
+                    llm_error = str(e)
                     logger.error(f"{self.name} LLM call failed iteration {iterations}: {e}")
                     break
 
+                logger.info(
+                    f"{self.name} iter {iterations}/{task.max_iterations}: "
+                    f"content={len(llm_response.content or '')} tool_calls={len(llm_response.tool_calls)}"
+                )
+
                 # If no tool calls, we're done — this is the final response
                 if not llm_response.tool_calls:
-                    response_text = llm_response.text or ""
+                    response_text = llm_response.content or ""
+                    if not response_text:
+                        logger.warning(f"{self.name} got empty response with no tool calls on iteration {iterations}")
                     break
 
                 # Execute tool calls (with permission enforcement)
-                messages.append({
-                    "role": "assistant",
-                    "content": llm_response.text or "",
-                    "tool_calls": [
-                        {
-                            "id": tc.id,
-                            "type": "function",
-                            "function": {
-                                "name": tc.name,
-                                "arguments": json.dumps(tc.arguments),
-                            },
-                        }
-                        for tc in llm_response.tool_calls
-                    ],
-                })
+                messages.append(ChatMessage(
+                    role="assistant",
+                    content=llm_response.content or "",
+                    tool_calls=llm_response.tool_calls,
+                ))
 
                 for tc in llm_response.tool_calls:
-                    result = await self._execute_tool_with_guard(tc.name, tc.arguments)
-                    messages.append({
-                        "role": "tool",
-                        "tool_call_id": tc.id,
-                        "content": result,
-                    })
+                    tc_fn = tc.get("function", {})
+                    tc_name = tc_fn.get("name", "")
+                    tc_args_raw = tc_fn.get("arguments", "{}")
+                    try:
+                        tc_args = json.loads(tc_args_raw) if isinstance(tc_args_raw, str) else tc_args_raw
+                    except json.JSONDecodeError:
+                        tc_args = {}
+
+                    result = await self._execute_tool_with_guard(tc_name, tc_args)
+                    messages.append(ChatMessage(
+                        role="tool",
+                        tool_call_id=tc.get("id", ""),
+                        content=result,
+                    ))
 
                     # Track file modifications
-                    if tc.name in ("write", "edit") and "path" in tc.arguments:
-                        files_modified.append(tc.arguments["path"])
+                    if tc_name in ("write", "edit") and "path" in tc_args:
+                        files_modified.append(tc_args["path"])
 
-                    all_actions.append(f"{tc.name}: {self._summarize_args(tc.arguments)}")
+                    all_actions.append(f"{tc_name}: {self._summarize_args(tc_args)}")
 
             # Determine status
             elapsed = time.time() - start_time
@@ -268,6 +277,7 @@ class Executive:
                 files_modified=files_modified,
                 duration_seconds=elapsed,
                 iterations_used=iterations,
+                error=llm_error,
             )
 
             # Persist report
@@ -307,7 +317,7 @@ class Executive:
             self._busy = False
             self._current_task = None
 
-    def _build_messages(self, task: Task) -> list[dict[str, Any]]:
+    def _build_messages(self, task: Task) -> list[ChatMessage]:
         """Build the initial message list for a task."""
         system = self.role.system_prompt
 
@@ -322,8 +332,8 @@ class Executive:
             user_content += f"\n\n**Deadline:** {task.deadline}"
 
         return [
-            {"role": "system", "content": system},
-            {"role": "user", "content": user_content},
+            ChatMessage(role="system", content=system),
+            ChatMessage(role="user", content=user_content),
         ]
 
     def _get_scoped_tool_definitions(self) -> list[dict[str, Any]]:

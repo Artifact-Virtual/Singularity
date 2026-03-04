@@ -881,10 +881,97 @@ class Runtime:
         
         logger.info("Runtime running. Waiting for events...")
         
+        # Start dispatch inbox watcher (for external CLI dispatch)
+        if self.dispatcher:
+            asyncio.create_task(self._poll_dispatch_inbox())
+        
         # Wait for shutdown signal
         await self._shutdown_event.wait()
         
         logger.info("Shutdown complete.")
+    
+    async def _poll_dispatch_inbox(self) -> None:
+        """
+        Poll .singularity/csuite/inbox/ for dispatch request files.
+        External tools (AVA CLI, cron, etc.) drop JSON files here.
+        Singularity picks them up, dispatches, writes results.
+        """
+        inbox = Path(self.workspace) / ".singularity" / "csuite" / "inbox"
+        results_dir = Path(self.workspace) / ".singularity" / "csuite" / "results"
+        inbox.mkdir(parents=True, exist_ok=True)
+        results_dir.mkdir(parents=True, exist_ok=True)
+        
+        logger.info("Dispatch inbox watcher started")
+        
+        while self._running:
+            try:
+                # Check for request files
+                for request_file in sorted(inbox.glob("*.json")):
+                    try:
+                        request = json.loads(request_file.read_text())
+                        request_id = request_file.stem
+                        
+                        target = request.get("target", "auto")
+                        description = request.get("description", "")
+                        priority = request.get("priority", "normal")
+                        
+                        if not description:
+                            logger.warning(f"Inbox: empty description in {request_file.name}, skipping")
+                            request_file.unlink()
+                            continue
+                        
+                        logger.info(f"Inbox: dispatching {request_id} → {target} (priority: {priority})")
+                        
+                        # Remove request file immediately (claimed)
+                        request_file.unlink()
+                        
+                        # Dispatch
+                        if target == "all":
+                            result = await self.dispatcher.dispatch_all(
+                                description=description, priority=priority,
+                            )
+                        elif target == "auto":
+                            result = await self.dispatcher.dispatch(
+                                description=description, priority=priority,
+                            )
+                        else:
+                            result = await self.dispatcher.dispatch_to(
+                                target=target, description=description, priority=priority,
+                            )
+                        
+                        # Write result
+                        result_data = {
+                            "request_id": request_id,
+                            "dispatch_id": result.dispatch_id,
+                            "all_succeeded": result.all_succeeded,
+                            "duration": round(result.duration, 2),
+                            "tasks": [
+                                {
+                                    "role": t.role,
+                                    "status": t.status,
+                                    "response": t.response,
+                                    "iterations_used": t.iterations_used,
+                                    "duration_seconds": round(t.duration_seconds, 2),
+                                }
+                                for t in result.tasks
+                            ],
+                        }
+                        result_file = results_dir / f"{request_id}.json"
+                        result_file.write_text(json.dumps(result_data, indent=2))
+                        logger.info(f"Inbox: {request_id} complete → {result_file.name}")
+                        
+                    except Exception as e:
+                        logger.error(f"Inbox: error processing {request_file.name}: {e}")
+                        # Move bad files out
+                        try:
+                            request_file.rename(request_file.with_suffix(".error"))
+                        except Exception:
+                            request_file.unlink(missing_ok=True)
+                
+            except Exception as e:
+                logger.error(f"Inbox watcher error: {e}")
+            
+            await asyncio.sleep(2)  # Poll every 2 seconds
     
     async def shutdown(self) -> None:
         """Gracefully shut down all subsystems."""

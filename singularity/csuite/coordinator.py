@@ -30,6 +30,7 @@ from typing import Any, Optional, TYPE_CHECKING
 
 from .roles import Role, RoleType, match_roles
 from .executive import Executive, Task, TaskResult, TaskStatus
+from .webhooks import WebhookReporter
 
 if TYPE_CHECKING:
     from ..bus import EventBus
@@ -116,6 +117,7 @@ class Coordinator:
         self._task_queue: asyncio.Queue[tuple[Task, RoleType]] = asyncio.Queue(maxsize=100)
         self._standing_orders: list[StandingOrder] = []
         self._running = False
+        self._webhook_reporter = WebhookReporter()
 
         # Wire up bus listeners
         async def _on_dispatch(event):
@@ -134,6 +136,16 @@ class Coordinator:
     async def start(self) -> None:
         """Start the coordinator's background loops."""
         self._running = True
+
+        # Initialize webhook reporter — loads URLs from deployment state
+        # The deployment files live under the singularity source tree's .singularity/
+        sg_deploy_dir = Path(__file__).resolve().parent.parent.parent / ".singularity"
+        await self._webhook_reporter.initialize(sg_deploy_dir)
+        if self._webhook_reporter.is_ready:
+            logger.info("⚡ Webhook reporter initialized — exec reports will post to Discord")
+        else:
+            logger.warning("Webhook reporter not ready — reports will not post to Discord")
+
         asyncio.create_task(self._queue_processor())
         asyncio.create_task(self._standing_order_loop())
         logger.info("⚡ Coordinator started")
@@ -218,6 +230,12 @@ class Coordinator:
 
         # Persist dispatch record
         await self._save_dispatch(result)
+
+        # Post results to Discord via webhooks
+        try:
+            await self._webhook_reporter.report_dispatch(result, description)
+        except Exception as e:
+            logger.error(f"Webhook reporting failed: {e}")
 
         # Emit completion
         await self.bus.emit("csuite.dispatch.completed", result.to_dict())
