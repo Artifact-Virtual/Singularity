@@ -22,6 +22,7 @@ Boot sequence:
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 import signal
@@ -95,6 +96,9 @@ class Runtime:
         self.watchdog = None     # IMMUNE watchdog
         self.router = None       # NERVE router
         self.adapters = {}       # NERVE channel adapters
+        self.coordinator = None  # CSUITE coordinator
+        self.dispatcher = None   # CSUITE dispatch interface
+        self.deployer = None     # NERVE guild deployer
         
         self._running = False
         self._boot_time: float | None = None
@@ -126,40 +130,52 @@ class Runtime:
         logger.info("=" * 60)
         self._boot_time = time.monotonic()
         
+        # Phase 0: Validate .core/ exists and is clean
+        logger.info("[0/11] Validating agent core...")
+        self._validate_core()
+        
         # Phase 1: Event Bus
-        logger.info("[1/9] Starting event bus...")
+        logger.info("[1/11] Starting event bus...")
         await self.bus.start()
         
         # Phase 2: Memory (MEMORY)
-        logger.info("[2/9] Initializing memory (MEMORY)...")
+        logger.info("[2/11] Initializing memory (MEMORY)...")
         await self._boot_memory()
         
         # Phase 3: Tools (SINEW)
-        logger.info("[3/9] Initializing tools (SINEW)...")
+        logger.info("[3/11] Initializing tools (SINEW)...")
         await self._boot_sinew()
         
         # Phase 4: Voice (VOICE)
-        logger.info("[4/9] Initializing voice (VOICE)...")
+        logger.info("[4/11] Initializing voice (VOICE)...")
         await self._boot_voice()
         
         # Phase 5: Brain (CORTEX)
-        logger.info("[5/9] Initializing brain (CORTEX)...")
+        logger.info("[5/11] Initializing brain (CORTEX)...")
         await self._boot_cortex()
         
-        # Phase 6: Scheduler (PULSE)
-        logger.info("[6/9] Initializing scheduler (PULSE)...")
+        # Phase 6: C-Suite (CSUITE) — requires VOICE + SINEW
+        logger.info("[6/11] Initializing C-Suite (CSUITE)...")
+        await self._boot_csuite()
+        
+        # Phase 7: Scheduler (PULSE)
+        logger.info("[7/11] Initializing scheduler (PULSE)...")
         await self._boot_pulse()
         
-        # Phase 7: Health + Immune
-        logger.info("[7/9] Initializing health monitoring (IMMUNE)...")
+        # Phase 8: Health + Immune
+        logger.info("[8/11] Initializing health monitoring (IMMUNE)...")
         await self._boot_immune()
         
-        # Phase 8: Channel routing (NERVE router)
-        logger.info("[8/9] Initializing message routing (NERVE)...")
+        # Phase 9: Channel routing (NERVE router)
+        logger.info("[9/11] Initializing message routing (NERVE)...")
         await self._boot_nerve_router()
         
-        # Phase 9: Channel adapters (NERVE)
-        logger.info("[9/9] Connecting channels (NERVE)...")
+        # Phase 10: Guild deployer (NERVE deployer)
+        logger.info("[10/11] Preparing guild deployer (NERVE)...")
+        self._boot_deployer()
+        
+        # Phase 11: Channel adapters (NERVE)
+        logger.info("[11/11] Connecting channels (NERVE)...")
         await self._boot_nerve_adapters()
         
         # Wire cross-subsystem events
@@ -172,7 +188,60 @@ class Runtime:
         await self.bus.emit("runtime.booted", {
             "boot_time_seconds": elapsed,
             "adapters": list(self.adapters.keys()),
+            "csuite_executives": list(self.coordinator.executives.keys()) if self.coordinator else [],
         })
+    
+    # ── Core Validation ──────────────────────────────────────────
+    
+    def _validate_core(self) -> None:
+        """Validate that .core/ exists and contains a clean agent install.
+        
+        If .core/ doesn't exist, the runtime still boots with root-level
+        identity files (backward compatible). But if .core/ exists, it
+        must have install.json proving it was created by fresh_install.py.
+        
+        This prevents corrupted state from bleeding into the runtime.
+        """
+        workspace = self.config.tools.workspace
+        core_dir = Path(workspace) / "singularity" / ".core"
+        
+        if not core_dir.exists():
+            logger.warning(
+                "  .core/ not found — using root-level identity files. "
+                "Run 'python3 -m singularity install' to create a clean agent."
+            )
+            return
+        
+        # Verify install.json exists (proof of clean install)
+        install_json = core_dir / "install.json"
+        if not install_json.exists():
+            logger.warning(
+                "  .core/ exists but has no install.json — "
+                "this may be legacy state. Consider running 'install' to get a clean slate."
+            )
+            return
+        
+        try:
+            record = json.loads(install_json.read_text())
+            agent_name = record.get("agent_name", "Unknown")
+            agent_emoji = record.get("agent_emoji", "?")
+            installed_at = record.get("installed_at", "?")
+            clean = record.get("clean_slate", False)
+            
+            logger.info(f"  {agent_emoji} Agent: {agent_name}")
+            logger.info(f"  Installed: {installed_at}")
+            if clean:
+                logger.info("  ✅ Clean slate verified")
+            else:
+                logger.warning("  ⚠️  Not a clean slate install")
+        except Exception as e:
+            logger.warning(f"  .core/install.json unreadable: {e}")
+        
+        # Verify identity files exist
+        for fname in ["SOUL.md", "IDENTITY.md", "AGENTS.md"]:
+            fpath = core_dir / fname
+            if not fpath.exists():
+                logger.warning(f"  Missing: .core/{fname}")
     
     # ── Individual Boot Phases ────────────────────────────────
     
@@ -250,7 +319,7 @@ class Runtime:
         bc = self.config.blink
         
         agent_config = AgentConfig(
-            persona_name=self.config.persona.name if hasattr(self.config, 'persona') else "singularity",
+            persona_name="singularity",
             max_iterations=pc.default_cap,
             expanded_iterations=pc.expanded_cap,
             expansion_threshold=pc.expand_threshold,
@@ -294,6 +363,154 @@ class Runtime:
         await self.cortex.boot()
         logger.info(f"  CORTEX ready (model: {vc.primary_model})")
     
+    async def _boot_csuite(self) -> None:
+        """Initialize C-Suite executives and coordinator."""
+        from .csuite.roles import (
+            RoleRegistry, RoleType, Role, ToolScope,
+            EscalationPolicy, AuditScope, _ROLE_DEFAULTS,
+            build_executive_prompt,
+        )
+        from .csuite.executive import Executive
+        from .csuite.coordinator import Coordinator
+        from .csuite.dispatch import Dispatcher
+        
+        if not self.config.csuite.enabled:
+            logger.info("  CSUITE disabled in config")
+            return
+        
+        # Build role registry from config personas
+        enterprise = "Artifact Virtual"
+        registry = RoleRegistry(enterprise=enterprise)
+        
+        CSUITE_NAMES = {"cto", "coo", "cfo", "ciso", "cro", "cpo", "cmo", "cdo", "cco"}
+        
+        # Collect exec persona configs (from both personas and csuite.personas)
+        exec_personas = []
+        seen = set()
+        for persona in self.config.personas:
+            role_id = persona.name.lower()
+            if role_id in CSUITE_NAMES and role_id not in seen:
+                exec_personas.append(persona)
+                seen.add(role_id)
+        for persona in self.config.csuite.personas:
+            role_id = persona.name.lower()
+            if role_id in CSUITE_NAMES and role_id not in seen:
+                exec_personas.append(persona)
+                seen.add(role_id)
+        
+        if not exec_personas:
+            logger.info("  CSUITE: no executive personas in config")
+            return
+        
+        # Create executives
+        executives: dict[RoleType, Executive] = {}
+        
+        for persona in exec_personas:
+            role_id = persona.name.lower()
+            role_type = RoleType.from_str(role_id)
+            defaults = _ROLE_DEFAULTS.get(role_id, _ROLE_DEFAULTS.get("custom", {}))
+            
+            # Build the role
+            title_map = {
+                "cto": "Chief Technology Officer",
+                "coo": "Chief Operating Officer",
+                "cfo": "Chief Financial Officer",
+                "ciso": "Chief Information Security Officer",
+                "cro": "Chief Risk Officer",
+                "cpo": "Chief Product Officer",
+                "cmo": "Chief Marketing Officer",
+                "cdo": "Chief Data Officer",
+                "cco": "Chief Compliance Officer",
+            }
+            title = title_map.get(role_id, f"Chief {role_id.upper()} Officer")
+            
+            role = Role(
+                role_type=role_type,
+                title=title,
+                emoji=defaults.get("emoji", "👤"),
+                domain=defaults.get("domain", ""),
+                keywords=defaults.get("keywords", []),
+                tools=ToolScope(
+                    read_paths=defaults.get("read_paths", []),
+                    write_paths=defaults.get("write_paths", []),
+                    forbidden_paths=defaults.get("forbidden_paths", [".ava-private/"]),
+                    can_exec=defaults.get("can_exec", True),
+                    can_network=defaults.get("can_network", False),
+                    allowed_tools=defaults.get("allowed_tools", ["read", "write", "edit", "exec"]),
+                ),
+                escalation=EscalationPolicy(
+                    timeout_seconds=defaults.get("timeout", 300),
+                ),
+                audit=AuditScope(
+                    checks=defaults.get("audit_checks", []),
+                ),
+                system_prompt=build_executive_prompt(
+                    role_type=role_id,
+                    title=title,
+                    emoji=defaults.get("emoji", "👤"),
+                    domain=defaults.get("domain", ""),
+                    enterprise=enterprise,
+                ),
+                enterprise=enterprise,
+            )
+            registry.register(role)
+            
+            # Determine workspace for this executive
+            exec_workspace = Path(persona.workspace) if persona.workspace else (
+                Path(self.workspace) / "executives" / role_id
+            )
+            
+            # Create the executive
+            executive = Executive(
+                role=role,
+                bus=self.bus,
+                provider_chain=self.voice,
+                tool_executor=self.tools,
+                workspace=exec_workspace,
+            )
+            executives[role_type] = executive
+        
+        # Create coordinator
+        csuite_workspace = Path(self.workspace) / ".singularity" / "csuite"
+        self.coordinator = Coordinator(
+            bus=self.bus,
+            executives=executives,
+            workspace=csuite_workspace,
+        )
+        await self.coordinator.start()
+        
+        # Create dispatcher
+        self.dispatcher = Dispatcher(self.coordinator)
+        
+        # Make dispatcher available as a tool
+        if self.tools:
+            self.tools.set_csuite_dispatcher(self.dispatcher)
+        
+        exec_names = [rt.value.upper() for rt in executives.keys()]
+        logger.info(f"  CSUITE ready ({len(executives)} executives: {', '.join(exec_names)})")
+    
+    def _boot_deployer(self) -> None:
+        """Prepare the guild deployer with exec roles from config."""
+        from .nerve.deployer import GuildDeployer
+        
+        exec_roles = self._extract_exec_roles()
+        
+        if exec_roles:
+            sg_dir = Path(self.workspace) / ".singularity"
+            self.deployer = GuildDeployer(
+                exec_roles=exec_roles,
+                private=True,
+                event_callback=self._deployer_event_callback,
+                sg_dir=sg_dir,
+            )
+            logger.info(f"  DEPLOYER ready ({len(exec_roles)} exec roles)")
+        else:
+            logger.info("  DEPLOYER skipped (no exec roles in config)")
+    
+    async def _deployer_event_callback(self, event: str, data: dict) -> None:
+        """Forward deployer events to the bus."""
+        await self.bus.emit(f"deployer.{event}", data)
+    
     async def _boot_pulse(self) -> None:
         """Initialize scheduler."""
         from .pulse.scheduler import Scheduler, JobConfig, JobType
@@ -307,7 +524,7 @@ class Runtime:
         # Register default health checks
         self._register_health_checks()
         
-        await self.health.start(check_interval=60.0)
+        await self.health.start(check_interval=self.config.immune.check_interval)
         logger.info("  PULSE ready (scheduler + health monitor)")
     
     async def _boot_immune(self) -> None:
@@ -370,21 +587,82 @@ class Runtime:
             adapter.on_message(on_message)
             
             try:
-                await adapter.connect({
+                connect_config = {
                     "token": dc.token,
                     "bot_id": dc.bot_user_id,
                     "sibling_bot_ids": dc.sister_bot_ids,
                     "guild_ids": dc.guild_ids,
-                })
+                }
+                
+                # Wire deployer if available (from _boot_deployer phase)
+                if self.deployer:
+                    connect_config["auto_deploy"] = True
+                    connect_config["deployer"] = self.deployer
+                
+                await adapter.connect(connect_config)
                 self.adapters["discord"] = adapter
                 # Wire adapter to SINEW for discord_send/react tools
                 if self.tools:
                     self.tools.set_discord_adapter(adapter)
-                logger.info("  Discord adapter connected")
+                logger.info(f"  Discord adapter connected (deployer: {'yes' if self.deployer else 'no'})")
             except Exception as e:
                 logger.error(f"  Discord adapter failed: {e}")
         else:
             logger.info("  Discord adapter skipped (no token)")
+    
+    def _extract_exec_roles(self) -> list[tuple[str, str, str, str]]:
+        """
+        Extract exec roles from config personas for the GuildDeployer.
+        
+        Returns list of (role_id, emoji, title, domain) tuples.
+        Maps persona names (CTO, COO, CFO, CISO, etc.) to role definitions.
+        Uses explicit emoji/title/domain from config if set, otherwise
+        falls back to _ROLE_DEFAULTS registry in csuite.roles.
+        """
+        from .csuite.roles import _ROLE_DEFAULTS
+        
+        # Standard C-Suite role names that should be deployed as channels
+        CSUITE_NAMES = {"cto", "coo", "cfo", "ciso", "cro", "cpo", "cmo", "cdo", "cco"}
+        
+        TITLE_MAP = {
+            "cto": "Chief Technology Officer",
+            "coo": "Chief Operating Officer",
+            "cfo": "Chief Financial Officer",
+            "ciso": "Chief Information Security Officer",
+            "cro": "Chief Risk Officer",
+            "cpo": "Chief Product Officer",
+            "cmo": "Chief Marketing Officer",
+            "cdo": "Chief Data Officer",
+            "cco": "Chief Compliance Officer",
+        }
+        
+        seen = set()
+        exec_roles = []
+        
+        for persona in self.config.personas:
+            role_id = persona.name.lower()
+            if role_id in CSUITE_NAMES and role_id not in seen:
+                defaults = _ROLE_DEFAULTS.get(role_id, _ROLE_DEFAULTS.get("custom", {}))
+                # Prefer explicit config values, fallback to role defaults
+                emoji = persona.emoji or defaults.get("emoji", "👤")
+                title = persona.title or TITLE_MAP.get(role_id, f"Chief {role_id.upper()} Officer")
+                domain = persona.domain or defaults.get("domain", "")
+                exec_roles.append((role_id, emoji, title, domain))
+                seen.add(role_id)
+                logger.debug(f"  Exec role from config: {emoji} {title}")
+        
+        # Also check csuite.personas if any exist there
+        for persona in self.config.csuite.personas:
+            role_id = persona.name.lower()
+            if role_id in CSUITE_NAMES and role_id not in seen:
+                defaults = _ROLE_DEFAULTS.get(role_id, _ROLE_DEFAULTS.get("custom", {}))
+                emoji = persona.emoji or defaults.get("emoji", "👤")
+                title = persona.title or TITLE_MAP.get(role_id, f"Chief {role_id.upper()} Officer")
+                domain = persona.domain or defaults.get("domain", "")
+                exec_roles.append((role_id, emoji, title, domain))
+                seen.add(role_id)
+        
+        return exec_roles
     
     # ── Health Check Registration ─────────────────────────────
     
@@ -414,7 +692,7 @@ class Runtime:
         
         # System vitals
         async def check_vitals():
-            from .immune.watchdog import collect_vitals
+            from .immune.vitals import collect_vitals
             vitals = collect_vitals()
             issues = []
             if vitals.disk_used_pct > 93:
@@ -518,6 +796,37 @@ class Runtime:
                 except Exception as e:
                     logger.error(f"Alert delivery failed: {e}")
         
+        # C-Suite task completion → log and optionally report to channels
+        @self.bus.on("csuite.task.completed")
+        async def on_csuite_completed(event):
+            data = event.data
+            role = data.get("role", "?")
+            status = data.get("status", "?")
+            duration = data.get("duration_seconds", 0)
+            logger.info(f"C-Suite task completed: {role} → {status} ({duration:.1f}s)")
+        
+        # C-Suite escalation → alert channel
+        @self.bus.on("csuite.escalation.to_ava")
+        async def on_csuite_escalation(event):
+            data = event.data
+            role = data.get("from", "?")
+            reason = data.get("reason", "?")
+            task_id = data.get("task_id", "?")
+            msg = f"⚠️ C-Suite Escalation: {role.upper()} — {reason} (task {task_id})"
+            logger.warning(msg)
+            
+            # Send alert to bridge channel
+            alert_channels = self.config.immune.alert_channels
+            if alert_channels and "discord" in self.adapters:
+                from .nerve.types import OutboundMessage
+                try:
+                    await self.adapters["discord"].send(
+                        alert_channels[0],
+                        OutboundMessage(content=msg),
+                    )
+                except Exception as e:
+                    logger.error(f"Escalation alert delivery failed: {e}")
+        
         logger.info("Event wiring complete")
     
     # ── Run Loop ──────────────────────────────────────────────
@@ -555,6 +864,9 @@ class Runtime:
                 logger.info(f"  Adapter {name} disconnected")
             except Exception as e:
                 logger.error(f"  Adapter {name} disconnect error: {e}")
+        
+        if self.coordinator:
+            await self.coordinator.stop()
         
         if self.watchdog:
             await self.watchdog.stop()

@@ -120,6 +120,18 @@ def main():
     immune_sub.add_parser("audit", help="Run Auditor examination")
     p_immune_all = immune_sub.add_parser("audit-all", help="Audit all active POAs and feed into immune")
 
+    # ── install ──
+    p_install = sub.add_parser("install", help="Fresh agent install — create clean .core/")
+    p_install.add_argument("--manifest", "-m", help="Agent manifest file (YAML/JSON)")
+    p_install.add_argument("--name", "-n", help="Agent name")
+    p_install.add_argument("--emoji", "-e", help="Agent emoji")
+    p_install.add_argument("--role", "-r", help="Agent role")
+    p_install.add_argument("--style", help="Personality style")
+    p_install.add_argument("--tone", help="Personality tone")
+    p_install.add_argument("--yes", "-y", action="store_true", help="Skip confirmation")
+    p_install.add_argument("--no-update-config", action="store_true",
+                          help="Don't update singularity.yaml")
+
     # ── deploy ──
     p_deploy = sub.add_parser("deploy", help="Deploy Singularity to a Discord server")
     p_deploy.add_argument("--guild", "-g", help="Guild (server) ID to deploy to")
@@ -149,6 +161,8 @@ def main():
             cmd_test(args)
         elif args.command == "immune":
             cmd_immune(args)
+        elif args.command == "install":
+            cmd_install(args)
         elif args.command == "deploy":
             cmd_deploy(args)
     except KeyboardInterrupt:
@@ -879,6 +893,90 @@ def cmd_immune(args):
 
         # Phase 3: Show refined output
         print(result.render())
+
+
+def cmd_install(args):
+    """Fresh agent install — create clean .core/."""
+    from .formatters import header, success, error, info
+    
+    header("SINGULARITY [AE] — Fresh Agent Install")
+    
+    # Import the install script
+    sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
+    from fresh_install import (
+        archive_existing_core, create_fresh_core,
+        update_runtime_config, load_manifest,
+        interactive_create, DEFAULT_MANIFEST, CORE_DIR,
+    )
+    
+    core_dir = CORE_DIR
+    
+    # Load or create manifest
+    if args.manifest:
+        manifest = load_manifest(args.manifest)
+        info(f"Loaded manifest: {args.manifest}")
+    elif args.name:
+        # Build from CLI args
+        import copy
+        manifest = copy.deepcopy(DEFAULT_MANIFEST)
+        manifest["agent"]["name"] = args.name
+        if args.emoji:
+            manifest["agent"]["emoji"] = args.emoji
+        if args.role:
+            manifest["agent"]["role"] = args.role
+        if args.style:
+            manifest["agent"]["personality"]["style"] = args.style
+        if args.tone:
+            manifest["agent"]["personality"]["tone"] = args.tone
+    else:
+        manifest = interactive_create()
+    
+    agent = manifest.get("agent", {})
+    name = agent.get("name", "Singularity")
+    emoji = agent.get("emoji", "⚡")
+    
+    # Confirm
+    if not args.yes:
+        print(f"\n  Will install: {emoji} {name}")
+        print(f"  Core dir: {core_dir}")
+        if core_dir.exists():
+            print(f"  ⚠️  Existing .core/ will be ARCHIVED (not deleted)")
+        try:
+            confirm = input("\n  Proceed? [Y/n]: ").strip()
+            if confirm.lower() == "n":
+                print("  Aborted.")
+                return
+        except (EOFError, KeyboardInterrupt):
+            print("\n  Aborted.")
+            return
+    
+    # Step 1: Archive
+    archive_path = archive_existing_core(core_dir)
+    
+    # Step 2: Create fresh .core/
+    create_fresh_core(core_dir, manifest)
+    
+    # Update install record
+    if archive_path:
+        import json as _json
+        install_json = core_dir / "install.json"
+        record = _json.loads(install_json.read_text())
+        record["previous_archive"] = str(archive_path)
+        install_json.write_text(_json.dumps(record, indent=2))
+    
+    # Step 3: Update config
+    if not args.no_update_config:
+        update_runtime_config(PROJECT_ROOT, core_dir)
+    
+    print(f"\n  {'=' * 56}")
+    print(f"  ✅ {emoji} {name} installed on clean slate")
+    print(f"  {'=' * 56}")
+    print(f"\n  .core/ is fresh. No legacy state. No corruption.")
+    print(f"  Memory starts empty. Identity starts clean.")
+    print(f"\n  To start: systemctl --user restart singularity")
+    if archive_path:
+        print(f"\n  Previous state archived at: {archive_path.name}/")
+    print()
 
 
 def cmd_deploy(args):

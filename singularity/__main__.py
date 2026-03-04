@@ -1216,7 +1216,7 @@ async def test_skeleton():
         icon = "✅" if status == "PASS" else "❌"
         print(f"    {icon} {name}: {detail}")
     
-    print(f"\n  Result: {passed}/{total} passed (P1: {p1_passed}/5, P2: {p2_passed}/4, P3: {p3_passed}/4, P4: {p4_passed}/4)")
+    print(f"\n  Result: {passed}/{total} passed (P1: {p1_passed}/{len(phase1_tests)}, P2: {p2_passed}/{len(phase2_tests)}, P3: {p3_passed}/{len(phase3_tests)}, P4: {p4_passed}/{len(phase4_tests)})")
     
     if passed == total:
         print(f"\n  🟢 ALL {total} TESTS PASSED")
@@ -1266,7 +1266,7 @@ def main():
     
     else:
         # Forward to CLI command system (init, audit, status, etc.)
-        cli_commands = {"init", "audit", "status", "spawn-exec", "poa", "scale-report", "health", "changeset", "test"}
+        cli_commands = {"init", "audit", "status", "spawn-exec", "poa", "scale-report", "health", "changeset", "test", "install"}
         if args and args[0] in cli_commands:
             from .cli.main import main as cli_main
             cli_main()
@@ -1278,6 +1278,7 @@ def main():
             print("  python3 -m singularity --test        # Run gate tests")
             print("  python3 -m singularity --config X    # Use custom config")
             print()
+            print("  python3 -m singularity install       # Fresh agent install (create clean .core/)")
             print("  python3 -m singularity init          # Initialize workspace")
             print("  python3 -m singularity audit         # Audit workspace")
             print("  python3 -m singularity status        # Runtime status")
