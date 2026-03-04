@@ -340,7 +340,7 @@ class CortexEngine:
                 comb_context = await self.comb.recall()
             else:
                 from ..memory.comb import CombMemory
-                comb = CombMemory(store_path=os.path.join(self.workspace, ".singularity", "comb"))
+                comb = CombMemory(store_path=os.path.join(self.workspace, "singularity", ".core", "memory", "comb"))
                 await comb.initialize()
                 comb_context = await comb.recall()
             if comb_context:

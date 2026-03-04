@@ -88,6 +88,7 @@ class Runtime:
         # Subsystem references (populated during boot)
         self.sessions = None     # MEMORY sessions
         self.comb = None         # MEMORY COMB
+        self.hektor = None       # MEMORY HEKTOR (search)
         self.tools = None        # SINEW executor
         self.voice = None        # VOICE provider chain
         self.cortex = None       # CORTEX engine
@@ -246,17 +247,25 @@ class Runtime:
     # ── Individual Boot Phases ────────────────────────────────
     
     async def _boot_memory(self) -> None:
-        """Initialize memory subsystem."""
+        """Initialize memory subsystem (COMB + HEKTOR + Sessions)."""
         from .memory.sessions import SessionStore
         from .memory.comb import CombMemory
+        from .memory.hektor import HektorMemory
         
+        sg_root = os.path.join(self.workspace, "singularity")
+        core_memory = os.path.join(sg_root, ".core", "memory")
+        
+        # Sessions DB — runtime data, lives in .singularity/
         sessions_db = os.path.join(self.workspace, ".singularity", "sessions.db")
         os.makedirs(os.path.dirname(sessions_db), exist_ok=True)
         self.sessions = SessionStore(db_path=sessions_db, bus=self.bus)
         await self.sessions.open()
-        comb_path = os.path.join(self.workspace, ".singularity", "comb")
+        
+        # COMB — persistent memory, lives in .core/memory/comb/
+        comb_path = os.path.join(core_memory, "comb")
         self.comb = CombMemory(store_path=comb_path, bus=self.bus)
         await self.comb.initialize()
+        logger.info(f"  COMB store: {comb_path}")
         
         # Recall on boot if configured
         if self.config.memory.recall_on_boot:
@@ -265,6 +274,16 @@ class Runtime:
                 logger.info(f"  COMB recall: {len(recall_content)} chars")
             else:
                 logger.info("  COMB recall: empty (first boot or no staged content)")
+        
+        # HEKTOR — BM25 search over workspace files
+        hektor_path = os.path.join(core_memory, "hektor")
+        self.hektor = HektorMemory(
+            workspace=self.workspace,
+            index_dir=hektor_path,
+            bus=self.bus,
+        )
+        file_count = await self.hektor.index()
+        logger.info(f"  HEKTOR indexed: {file_count} files")
         
         logger.info(f"  MEMORY ready (workspace: {self.workspace})")
     

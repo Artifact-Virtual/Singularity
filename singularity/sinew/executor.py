@@ -409,49 +409,24 @@ class ToolExecutor:
             return "Error: content required"
         
         try:
-            # Primary: use the enterprise flush.py (battle-tested)
-            flush_script = self.workspace / ".ava-memory" / "flush.py"
-            if flush_script.exists():
-                proc = await asyncio.create_subprocess_exec(
-                    "python3", str(flush_script), "stage", content,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.STDOUT,
-                    cwd=str(self.workspace),
-                )
-                stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=15)
-                output = stdout.decode("utf-8", errors="replace").strip()
-                return output or f"Staged {len(content)} chars"
-            
-            # Fallback: native CombMemory
+            # Use Singularity's native CombMemory at .core/memory/comb/
             from ..memory.comb import CombMemory
-            comb_path = self.workspace / ".singularity" / "comb"
+            comb_path = self.workspace / "singularity" / ".core" / "memory" / "comb"
             comb = CombMemory(store_path=str(comb_path))
             await comb.initialize()
             success = await comb.stage(content)
-            return f"Staged {len(content)} chars to COMB" if success else "COMB stage failed"
+            if success:
+                return f"✅ Staged {len(content)} chars into COMB"
+            return "COMB stage failed"
         except Exception as e:
             return f"COMB stage error: {e}"
     
     async def _tool_comb_recall(self, args: dict) -> str:
         """Recall operational memory from COMB."""
         try:
-            # Primary: use the enterprise flush.py (battle-tested)
-            flush_script = self.workspace / ".ava-memory" / "flush.py"
-            if flush_script.exists():
-                proc = await asyncio.create_subprocess_exec(
-                    "python3", str(flush_script), "recall",
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.STDOUT,
-                    cwd=str(self.workspace),
-                    env={**os.environ, "PATH": os.environ.get("PATH", "")},
-                )
-                stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=15)
-                output = stdout.decode("utf-8", errors="replace").strip()
-                return output or "(no COMB data)"
-            
-            # Fallback: native CombMemory
+            # Use Singularity's native CombMemory at .core/memory/comb/
             from ..memory.comb import CombMemory
-            comb_path = self.workspace / ".singularity" / "comb"
+            comb_path = self.workspace / "singularity" / ".core" / "memory" / "comb"
             comb = CombMemory(store_path=str(comb_path))
             await comb.initialize()
             result = await comb.recall()
@@ -462,33 +437,27 @@ class ToolExecutor:
     # ── Memory search ────────────────────────────────────────────
     
     async def _tool_memory_search(self, args: dict) -> str:
-        """Search enterprise memory using HEKTOR."""
+        """Search workspace memory using HEKTOR BM25."""
         query = args.get("query", "")
-        k = args.get("k", 5)
-        mode = args.get("mode", "hybrid")
+        k = int(args.get("k", 5))
         
         if not query:
             return "Error: query required"
         
         try:
-            search_script = self.workspace / ".ava-memory" / "ava_memory_fast.py"
-            if not search_script.exists():
-                return "Error: HEKTOR memory system not found"
+            from ..memory.hektor import HektorMemory
+            hektor = HektorMemory(workspace=self.workspace)
+            results = await hektor.search(query, k=k)
             
-            cmd = [
-                "python3", str(search_script), "search", query,
-                "--mode", mode, "-k", str(int(k))
-            ]
-            proc = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.STDOUT,
-                cwd=str(self.workspace),
-                env={**os.environ, "PATH": os.environ.get("PATH", "")},
-            )
-            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=30)
-            output = stdout.decode("utf-8", errors="replace").strip()
-            return output or "(no results)"
+            if not results:
+                return f"No results for: {query}"
+            
+            lines = [f"Found {len(results)} results for '{query}':\n"]
+            for i, r in enumerate(results, 1):
+                lines.append(f"  [{i}] {r['path']} (score: {r['score']})")
+                lines.append(f"      {r['snippet'][:150]}")
+                lines.append("")
+            return "\n".join(lines)
         except Exception as e:
             return f"Memory search error: {e}"
     
