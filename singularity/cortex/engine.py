@@ -44,15 +44,17 @@ class CortexConfig:
     identity_files: list[str] = None  # Paths to identity files to load
     rules: str = ""
     context_budget: int = 180_000
-    agent: AgentConfig = None
-    blink: BlinkConfig = None
+    agent: Optional[AgentConfig] = None
+    blink: Optional[BlinkConfig] = None
     
     def __post_init__(self):
         if self.identity_files is None:
             self.identity_files = []
         if self.agent is None:
+            from .agent import AgentConfig
             self.agent = AgentConfig()
         if self.blink is None:
+            from .blink import BlinkConfig
             self.blink = BlinkConfig()
 
 
@@ -97,13 +99,15 @@ class CortexEngine:
         
         self._system_prompt: str = ""
         self._prompt_loaded = False
+        self._prompt_lock = asyncio.Lock()
         self._context = ContextAssembler(
             context_budget=config.context_budget,
         )
     
     async def boot(self) -> None:
         """Load identity and prepare for processing."""
-        await self._load_system_prompt()
+        async with self._prompt_lock:
+            await self._load_system_prompt()
         logger.info("CortexEngine ready (BLINK enabled: %s)", self.config.blink.enabled)
     
     async def process(
@@ -129,9 +133,19 @@ class CortexEngine:
             TurnResult with the response and metadata
         """
         if not self._prompt_loaded:
-            await self._load_system_prompt()
+            async with self._prompt_lock:
+                if not self._prompt_loaded:  # double-check after acquiring lock
+                    await self._load_system_prompt()
         
         # 1. Store the inbound message in session
+        if not message or not message.strip():
+            logger.warning(f"Empty message received for session {session_id[:12]}...")
+            return TurnResult(
+                response="",
+                finish_reason="error",
+                error="Empty message received",
+            )
+        
         user_msg = Message(role="user", content=message)
         await self.sessions.add_message(session_id, user_msg)
         
@@ -150,84 +164,105 @@ class CortexEngine:
         final_result = None
         accumulated_response = ""
         
-        while blink.should_continue():
-            # Retrieve session history fresh each cycle
-            # (previous cycle's tool calls + results are in there)
-            history_msgs = await self.sessions.get_messages(session_id)
-            
-            # Convert to ChatMessages for the LLM
-            chat_history = [
-                ChatMessage(
-                    role=m.role,
-                    content=m.content or "",
-                    tool_calls=m.tool_calls,
-                    tool_call_id=m.tool_call_id,
-                    name=m.name,
+        try:
+            while blink.should_continue():
+                # Retrieve session history fresh each cycle
+                # (previous cycle's tool calls + results are in there)
+                history_msgs = await self.sessions.get_messages(session_id)
+                
+                # Convert to ChatMessages for the LLM
+                chat_history = [
+                    ChatMessage(
+                        role=m.role,
+                        content=m.content or "",
+                        tool_calls=m.tool_calls,
+                        tool_call_id=m.tool_call_id,
+                        name=m.name,
+                    )
+                    for m in history_msgs
+                ]
+                
+                # If this is a blink resume, inject the resume context
+                if blink.state.depth > 0:
+                    resume_msg = ChatMessage(
+                        role="user",
+                        content=blink.get_resume_message(),
+                    )
+                    chat_history.append(resume_msg)
+                    blink.record_resume()
+                
+                # Assemble context (system prompt + history)
+                messages = self._context.assemble(
+                    system_prompt=self._system_prompt,
+                    history=chat_history[:-1] if blink.state.depth == 0 else chat_history,
+                    new_message=chat_history[-1] if blink.state.depth == 0 else None,
                 )
-                for m in history_msgs
-            ]
-            
-            # If this is a blink resume, inject the resume context
-            if blink.state.depth > 0:
-                resume_msg = ChatMessage(
-                    role="user",
-                    content=blink.get_resume_message(),
+                
+                # Spawn a fresh AgentLoop with blink awareness
+                loop = AgentLoop(
+                    voice=self.voice,
+                    tools=self.tools,
+                    config=self.config.agent,
+                    bus=self.bus,
+                    blink=blink,
                 )
-                chat_history.append(resume_msg)
-                blink.record_resume()
-            
-            # Assemble context (system prompt + history)
-            messages = self._context.assemble(
-                system_prompt=self._system_prompt,
-                history=chat_history[:-1] if blink.state.depth == 0 else chat_history,
-                new_message=chat_history[-1] if blink.state.depth == 0 else None,
+                
+                # Run the loop
+                result = await loop.run(messages)
+                
+                # Accumulate response text
+                if result.response:
+                    accumulated_response += result.response
+                
+                # Check if we need to blink
+                if blink.needs_blink(result.finish_reason):
+                    # Record the blink
+                    blink.record_blink(result.iterations, result.tool_calls_total)
+                    
+                    # Store any partial tool call history in session
+                    # (The agent loop's messages already include tool calls/results,
+                    #  but the final response was empty — store a checkpoint note)
+                    checkpoint_msg = Message(
+                        role="assistant",
+                        content=f"[blink #{blink.state.depth} — continuing seamlessly]",
+                    )
+                    await self.sessions.add_message(session_id, checkpoint_msg)
+                    
+                    # Brief cooldown to prevent tight-looping
+                    await asyncio.sleep(self.config.blink.cooldown_seconds)
+                    
+                    logger.info(
+                        f"BLINK #{blink.state.depth} for session {session_id[:12]}... "
+                        f"— spawning fresh agent loop"
+                    )
+                    
+                    # Loop continues → fresh AgentLoop with full budget
+                    continue
+                
+                # Normal completion — done
+                blink.record_complete(result.iterations, result.tool_calls_total)
+                final_result = result
+                break
+        
+        except Exception as e:
+            logger.error(
+                f"Engine error in blink loop for session {session_id[:12]}...: {e}",
+                exc_info=True,
             )
-            
-            # Spawn a fresh AgentLoop with blink awareness
-            loop = AgentLoop(
-                voice=self.voice,
-                tools=self.tools,
-                config=self.config.agent,
-                bus=self.bus,
-                blink=blink,
+            if self.bus:
+                await self.bus.emit_nowait("cortex.engine.error", {
+                    "session_id": session_id,
+                    "error": str(e),
+                    "blink_depth": blink.state.depth,
+                    "total_iterations": blink.state.total_iterations,
+                }, source="cortex")
+            final_result = TurnResult(
+                response=accumulated_response or "",
+                iterations=blink.state.total_iterations,
+                tool_calls_total=blink.state.total_tool_calls,
+                finish_reason="error",
+                error=str(e),
             )
-            
-            # Run the loop
-            result = await loop.run(messages)
-            
-            # Accumulate response text
-            if result.response:
-                accumulated_response += result.response
-            
-            # Check if we need to blink
-            if blink.needs_blink(result.finish_reason):
-                # Record the blink
-                blink.record_blink(result.iterations, result.tool_calls_total)
-                
-                # Store any partial tool call history in session
-                # (The agent loop's messages already include tool calls/results,
-                #  but the final response was empty — store a checkpoint note)
-                checkpoint_msg = Message(
-                    role="assistant",
-                    content=f"[blink #{blink.state.depth} — continuing seamlessly]",
-                )
-                await self.sessions.add_message(session_id, checkpoint_msg)
-                
-                # Brief cooldown to prevent tight-looping
-                await asyncio.sleep(self.config.blink.cooldown_seconds)
-                
-                logger.info(
-                    f"BLINK #{blink.state.depth} for session {session_id[:12]}... "
-                    f"— spawning fresh agent loop"
-                )
-                
-                # Loop continues → fresh AgentLoop with full budget
-                continue
-            
-            # Normal completion — done
-            blink.record_complete(result.iterations, result.tool_calls_total)
-            final_result = result
-            break
         
         # If we exhausted blink depth without a final result
         if final_result is None:

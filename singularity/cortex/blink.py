@@ -221,13 +221,16 @@ class BlinkController:
         self.state.phase = BlinkPhase.NORMAL
     
     def _emit(self, topic: str, data: dict) -> None:
-        """Fire event on bus."""
+        """Fire event on bus (best-effort, non-blocking)."""
         if self.bus:
             import asyncio
             try:
                 loop = asyncio.get_running_loop()
-                loop.create_task(self.bus.emit(topic, data))
+                task = loop.create_task(self.bus.emit(topic, data))
+                # prevent GC of fire-and-forget tasks
+                task.add_done_callback(lambda t: t.exception() if not t.cancelled() and t.exception() else None)
             except RuntimeError:
+                # No running loop — can't emit, that's OK
                 pass
     
     def __repr__(self) -> str:

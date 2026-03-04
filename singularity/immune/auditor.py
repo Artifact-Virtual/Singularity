@@ -47,7 +47,7 @@ from .health import (
     DamageType,
     HEAL_TABLE,
 )
-from .watchdog import collect_vitals
+from .vitals import collect_vitals
 
 logger = logging.getLogger("singularity.immune.auditor")
 

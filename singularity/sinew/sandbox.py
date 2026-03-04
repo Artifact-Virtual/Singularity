@@ -34,7 +34,7 @@ BLOCKED_PATTERNS = [
     r"init\s+[06]",                # init shutdown/reboot
     r"chmod\s+.*777\s+/",          # chmod 777 on root paths
     r"chown\s+.*root",             # chown to root
-    r"passwd\b",                    # password changes
+    r"(?:^|sudo\s+)passwd\b",      # password changes (not /etc/passwd reads)
     r"userdel\b",                   # user deletion
 ]
 

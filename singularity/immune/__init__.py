@@ -39,7 +39,8 @@ from .health import (
 from .auditor import Auditor, Diagnosis
 from .feedback import FeedbackBridge, FeedbackEvent
 from .reflector import Reflector, ReflectionResult, POAState, POAProfile
-from .watchdog import Watchdog, SystemVitals, collect_vitals
+from .watchdog import Watchdog
+from .vitals import SystemVitals, collect_vitals
 
 __all__ = [
     # Patient

@@ -27,6 +27,13 @@ def split_on_boundaries(
     Split text on natural boundaries (paragraphs, sentences, words)
     without breaking mid-word or mid-code-block.
     """
+    if not text:
+        return [text or ""]
+
+    # Guard against invalid max_length (prevents infinite loops)
+    if max_length <= 0:
+        max_length = 2000
+
     if len(text) <= max_length:
         return [text]
 
@@ -160,6 +167,9 @@ def format_for_channel(
     
     Returns a list of chunks, each within the platform's message length limit.
     """
+    if not markdown:
+        return [markdown or ""]
+
     fmt_fn, default_max = _FORMATTERS.get(
         capabilities.formatting, (_format_plain, 4096)
     )

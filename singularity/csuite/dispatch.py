@@ -10,9 +10,13 @@ This module provides:
     - dispatch_to()   — target a specific executive
     - status()        — get C-Suite health snapshot
     - history()       — recent dispatch history
+    - load_webhooks() — load webhook URLs from deployment files
 
 All dispatches go through the Coordinator (Singularity).
 No webhooks. No Discord. Native event bus.
+
+Webhook URLs are persisted by the GuildDeployer for legacy/external
+integrations that still need them.
 """
 
 from __future__ import annotations
@@ -31,6 +35,89 @@ if TYPE_CHECKING:
     pass
 
 logger = logging.getLogger("singularity.csuite.dispatch")
+
+
+# ── Webhook URL Loader ────────────────────────────────────────────────
+
+def load_webhooks(
+    sg_dir: str | Path = "",
+    guild_id: str = "",
+) -> dict[str, str]:
+    """
+    Load webhook URLs from deployment result files.
+    
+    Args:
+        sg_dir: Path to .singularity directory. If empty, uses default workspace.
+        guild_id: Specific guild to load. If empty, loads first available.
+    
+    Returns:
+        Dict of channel_name → webhook_url (e.g. {"cto": "https://discord.com/api/webhooks/..."})
+    """
+    if not sg_dir:
+        sg_dir = Path.home() / "workspace" / "enterprise" / ".singularity"
+    sg_dir = Path(sg_dir)
+    deploy_dir = sg_dir / "deployments"
+    
+    if not deploy_dir.exists():
+        logger.warning(f"No deployments directory at {deploy_dir}")
+        return {}
+    
+    if guild_id:
+        deploy_file = deploy_dir / f"{guild_id}.json"
+        if not deploy_file.exists():
+            logger.warning(f"No deployment file for guild {guild_id}")
+            return {}
+        files = [deploy_file]
+    else:
+        files = sorted(deploy_dir.glob("*.json"))
+    
+    webhooks: dict[str, str] = {}
+    for f in files:
+        try:
+            data = json.loads(f.read_text())
+            wh = data.get("webhooks", {})
+            if wh:
+                webhooks.update(wh)
+                logger.info(f"Loaded {len(wh)} webhooks from {f.name}")
+        except Exception as e:
+            logger.error(f"Failed to load webhooks from {f}: {e}")
+    
+    return webhooks
+
+
+def load_deployment(
+    sg_dir: str | Path = "",
+    guild_id: str = "",
+) -> dict[str, Any]:
+    """
+    Load full deployment data (channels + webhooks) from deployment result files.
+    
+    Returns:
+        Full deployment dict including channels, webhooks, guild info.
+    """
+    if not sg_dir:
+        sg_dir = Path.home() / "workspace" / "enterprise" / ".singularity"
+    sg_dir = Path(sg_dir)
+    deploy_dir = sg_dir / "deployments"
+    
+    if not deploy_dir.exists():
+        return {}
+    
+    if guild_id:
+        deploy_file = deploy_dir / f"{guild_id}.json"
+        if not deploy_file.exists():
+            return {}
+        files = [deploy_file]
+    else:
+        files = sorted(deploy_dir.glob("*.json"))
+    
+    for f in files:
+        try:
+            return json.loads(f.read_text())
+        except Exception as e:
+            logger.error(f"Failed to load deployment from {f}: {e}")
+    
+    return {}
 
 
 class Dispatcher:

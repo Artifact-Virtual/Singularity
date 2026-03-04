@@ -52,11 +52,16 @@ class ToolExecutor:
         self.max_output = max_output
         self._background_procs: dict[str, asyncio.subprocess.Process] = {}
         self._discord_adapter: Any = None  # Set by runtime after boot
+        self._csuite_dispatcher: Any = None  # Set by runtime after C-Suite boot
         self._current_sender_id: str | None = None  # For @mention enforcement
     
     def set_discord_adapter(self, adapter: Any) -> None:
         """Wire the Discord adapter for discord_send/react tools."""
         self._discord_adapter = adapter
+    
+    def set_csuite_dispatcher(self, dispatcher: Any) -> None:
+        """Wire the C-Suite dispatcher for csuite_dispatch tool."""
+        self._csuite_dispatcher = dispatcher
     
     def set_current_sender(self, sender_id: str | None) -> None:
         """Set the current message sender for @mention enforcement."""
@@ -486,3 +491,45 @@ class ToolExecutor:
             return output or "(no results)"
         except Exception as e:
             return f"Memory search error: {e}"
+    
+    async def _tool_csuite_dispatch(self, args: dict) -> str:
+        """Dispatch a task to the C-Suite executives.
+        
+        Routes tasks to CTO/COO/CFO/CISO through the native Coordinator.
+        No webhooks. No Discord. Direct event bus dispatch.
+        """
+        if not self._csuite_dispatcher:
+            return "Error: C-Suite not initialized. Check config csuite.enabled."
+        
+        description = args.get("description", "")
+        target = args.get("target", "auto")
+        priority = args.get("priority", "normal")
+        max_iterations = args.get("max_iterations", 25)
+        
+        if not description:
+            return "Error: description required"
+        
+        try:
+            result = await self._csuite_dispatcher.dispatch_to(
+                target=target,
+                description=description,
+                priority=priority,
+                max_iterations=max_iterations,
+            ) if target != "auto" else await self._csuite_dispatcher.dispatch(
+                description=description,
+                priority=priority,
+                max_iterations=max_iterations,
+            )
+            
+            # Format response
+            lines = [f"📋 Dispatch {result.dispatch_id} — {len(result.tasks)} task(s), {result.duration:.1f}s"]
+            for t in result.tasks:
+                icon = "✅" if t.status.value == "complete" else "❌" if t.status.value == "failed" else "⏱️"
+                lines.append(f"  {icon} {t.role.value.upper()}: {t.status.value}")
+                if t.response:
+                    lines.append(f"  Response: {t.response[:500]}")
+                if t.error:
+                    lines.append(f"  Error: {t.error[:200]}")
+            return "\n".join(lines)
+        except Exception as e:
+            return f"C-Suite dispatch error: {e}"

@@ -123,8 +123,10 @@ class OllamaProvider(ChatProvider):
                             finish_reason=finish,
                             usage=usage if usage else None,
                         )
+                        self.record_success()
                         return
             
+            # Stream ended without done=true — still a success if we got here
             self.record_success()
             
         except Exception as e:

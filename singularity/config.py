@@ -143,6 +143,10 @@ class PersonaConfig(BaseModel):
     workspace: str = ""
     tools_enabled: bool = True
     max_iterations: int = 0  # 0 = use default
+    # Executive role metadata (used by deployer for channel topics + webhooks)
+    emoji: str = ""          # e.g. "🔧" — auto-filled from role defaults if empty
+    title: str = ""          # e.g. "Chief Technology Officer" — auto-filled if empty
+    domain: str = ""         # e.g. "Engineering, infrastructure..." — auto-filled if empty
 
 
 class CSuiteConfig(BaseModel):

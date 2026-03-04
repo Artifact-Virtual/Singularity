@@ -21,7 +21,7 @@ Subsystems:
 from .roles import Role, RoleType, RoleRegistry, ToolScope, EscalationPolicy, match_roles
 from .executive import Executive
 from .coordinator import Coordinator
-from .dispatch import Dispatcher
+from .dispatch import Dispatcher, load_webhooks, load_deployment
 
 __all__ = [
     "Role", "RoleType", "RoleRegistry", "ToolScope", "EscalationPolicy",
@@ -29,4 +29,6 @@ __all__ = [
     "Executive",
     "Coordinator",
     "Dispatcher",
+    "load_webhooks",
+    "load_deployment",
 ]

@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Optional
+from typing import Any, Optional
 
 try:
     import discord
@@ -188,7 +188,10 @@ class DiscordAdapter(BaseAdapter):
 
         @client.event
         async def on_message_edit(before, after):
-            if after.author.id == int(self._bot_id or 0):
+            # 'before' can be None for uncached messages — only 'after' is guaranteed
+            if after is None:
+                return
+            if after.author and after.author.id == int(self._bot_id or 0):
                 return
             self._handle_edit(after)
 
@@ -315,12 +318,14 @@ class DiscordAdapter(BaseAdapter):
 
     def _handle_delete(self, msg: DiscordMessage) -> None:
         chat_id = str(msg.channel.id)
+        # msg.author may be None for uncached messages
+        sender_id = str(msg.author.id) if msg.author else "unknown"
         source = ChannelSource(
             channel_type="discord",
             adapter_id=self._id,
             chat_id=chat_id,
             chat_type=self._resolve_chat_type(msg.channel),
-            sender_id=str(msg.author.id) if msg.author else "unknown",
+            sender_id=sender_id,
         )
         inbound = InboundPayload(
             type=PayloadType.DELETE,
@@ -423,8 +428,16 @@ class DiscordAdapter(BaseAdapter):
         chunks = (
             format_for_channel(message.content, self.capabilities)
             if message.content
-            else [""]
+            else []
         )
+
+        # If no content and no media, nothing to send
+        if not chunks and not message.media:
+            return SendResult(success=True, message_id=None)
+
+        # Ensure at least one chunk for media-only sends
+        if not chunks:
+            chunks = [""]
 
         last_message_id: Optional[str] = None
 

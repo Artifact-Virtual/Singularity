@@ -81,6 +81,7 @@ REQUIRED_PERMISSIONS = discord.Permissions(
     # Channel management
     manage_channels=True,
     manage_roles=True,
+    manage_webhooks=True,
     view_channel=True,
 
     # Messaging
@@ -170,6 +171,7 @@ class DeploymentResult:
     success: bool = False
     category_id: Optional[str] = None
     channels: dict[str, str] = field(default_factory=dict)  # name → channel_id
+    webhooks: dict[str, str] = field(default_factory=dict)   # name → webhook_url
     errors: list[str] = field(default_factory=list)
     timestamp: float = field(default_factory=time.time)
 
@@ -180,6 +182,7 @@ class DeploymentResult:
             "success": self.success,
             "category_id": self.category_id,
             "channels": self.channels,
+            "webhooks": self.webhooks,
             "errors": self.errors,
             "timestamp": self.timestamp,
         }
@@ -306,7 +309,13 @@ class GuildDeployer:
                 if channel_id:
                     result.channels[role_id] = channel_id
 
-            # ── Step 5: Send welcome message to #bridge ──
+            # ── Step 5: Create webhooks for all channels ──
+            for ch_name, ch_id in result.channels.items():
+                webhook_url = await self._create_webhook(guild, ch_name, ch_id)
+                if webhook_url:
+                    result.webhooks[ch_name] = webhook_url
+
+            # ── Step 6: Send welcome message to #bridge ──
             bridge_id = result.channels.get("bridge")
             if bridge_id:
                 await self._send_welcome(guild, bridge_id, result)
@@ -325,7 +334,7 @@ class GuildDeployer:
             logger.error(f"Deploy failed in {guild.name}: {err}", exc_info=True)
             await self._emit("deploy.error", {"guild_id": str(guild.id), "error": err})
 
-        # ── Step 6: Persist ──
+        # ── Step 7: Persist ──
         self._deployments[str(guild.id)] = result
         if self._sg_dir:
             deploy_dir = self._sg_dir / "deployments"
@@ -417,6 +426,61 @@ class GuildDeployer:
 
         except Exception as e:
             logger.error(f"Failed to create #{name}: {e}")
+            return None
+
+    async def _create_webhook(
+        self,
+        guild: Guild,
+        channel_name: str,
+        channel_id: str,
+    ) -> Optional[str]:
+        """Create a webhook on a channel. Returns webhook URL or None.
+        
+        Reuses existing Singularity webhooks if found (idempotent).
+        """
+        webhook_name = f"Singularity — {channel_name}"
+        try:
+            channel = guild.get_channel(int(channel_id))
+            if not channel:
+                logger.warning(f"Channel {channel_id} not found for webhook creation")
+                return None
+
+            # Check for existing webhook (idempotent — don't duplicate)
+            existing_webhooks = await channel.webhooks()
+            for wh in existing_webhooks:
+                if wh.name == webhook_name:
+                    logger.info(f"Webhook already exists on #{channel_name}, reusing")
+                    await self._emit("deploy.webhook.exists", {
+                        "guild_id": str(guild.id),
+                        "channel": channel_name,
+                        "webhook_id": str(wh.id),
+                    })
+                    return wh.url
+
+            # Create new webhook
+            webhook = await channel.create_webhook(
+                name=webhook_name,
+                reason=f"Singularity [AE] — dispatch webhook for #{channel_name}",
+            )
+
+            await self._emit("deploy.webhook", {
+                "guild_id": str(guild.id),
+                "channel": channel_name,
+                "webhook_id": str(webhook.id),
+            })
+
+            logger.info(f"Created webhook on #{channel_name}: {webhook.id}")
+
+            # Brief pause to avoid rate limits
+            await asyncio.sleep(0.3)
+
+            return webhook.url
+
+        except discord.Forbidden:
+            logger.error(f"Missing Manage Webhooks permission for #{channel_name}")
+            return None
+        except Exception as e:
+            logger.error(f"Failed to create webhook on #{channel_name}: {e}")
             return None
 
     async def _send_welcome(

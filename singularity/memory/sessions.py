@@ -175,20 +175,29 @@ class SessionStore:
         return msg_id
     
     async def get_messages(self, channel_id: str, limit: int = 0) -> list[Message]:
-        """Retrieve all messages for a session."""
+        """Retrieve messages for a session.
+        
+        If limit > 0, returns the MOST RECENT N messages (for context window trimming).
+        If limit == 0, returns all messages in chronological order.
+        """
         if not self._db:
             raise RuntimeError("SessionStore not opened")
         
-        query = """SELECT role, content, tool_calls, tool_call_id, name 
-                   FROM messages WHERE channel_id = ? ORDER BY id"""
-        params: tuple = (channel_id,)
-        
         if limit > 0:
-            query += " LIMIT ?"
-            params = (channel_id, limit)
-        
-        cursor = await self._db.execute(query, params)
-        rows = await cursor.fetchall()
+            # Get most recent N messages using a subquery to preserve chronological order
+            query = """SELECT role, content, tool_calls, tool_call_id, name 
+                       FROM messages WHERE channel_id = ? 
+                       ORDER BY id DESC LIMIT ?"""
+            params: tuple = (channel_id, limit)
+            cursor = await self._db.execute(query, params)
+            rows = await cursor.fetchall()
+            rows.reverse()  # Back to chronological order
+        else:
+            query = """SELECT role, content, tool_calls, tool_call_id, name 
+                       FROM messages WHERE channel_id = ? ORDER BY id"""
+            params = (channel_id,)
+            cursor = await self._db.execute(query, params)
+            rows = await cursor.fetchall()
         
         messages = []
         for row in rows:

@@ -74,10 +74,13 @@ class DeduplicationCache:
     def check(self, message_id: str) -> bool:
         """Returns True if this is a duplicate."""
         now = time.time()
-        self._evict(now)
 
+        # Check BEFORE eviction — duplicates must be detected even at capacity
         if message_id in self._seen:
             return True
+
+        # Only evict during insertion of new items
+        self._evict(now)
         self._seen[message_id] = now
         return False
 

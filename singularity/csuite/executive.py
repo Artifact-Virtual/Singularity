@@ -270,7 +270,7 @@ class Executive:
             await self.bus.emit("csuite.task.completed", result.to_dict())
 
             # Check escalation
-            if status in (TaskStatus.TIMEOUT, TaskStatus.FAILED) and self.role.escalation.escalate_on_failure:
+            if status in (TaskStatus.TIMEOUT, TaskStatus.FAILED) and self.role.escalation.on_failure:
                 await self.bus.emit("csuite.escalation", {
                     "role": self.role.role_type.value,
                     "task_id": task.task_id,
@@ -362,18 +362,18 @@ class Executive:
 
         # Check read-only paths (block writes)
         if write:
-            for rp in self.role.tools.read_only_paths:
+            for rp in self.role.tools.read_paths:
                 if path.startswith(rp.lstrip("./")):
                     return False
 
-        # Check allowed workspace paths
-        for wp in self.role.tools.workspace_paths:
+        # Check writable workspace paths
+        for wp in self.role.tools.write_paths:
             if path.startswith(wp.lstrip("./")):
                 return True
 
         # Check read-only paths (allow reads)
         if not write:
-            for rp in self.role.tools.read_only_paths:
+            for rp in self.role.tools.read_paths:
                 if path.startswith(rp.lstrip("./")):
                     return True
 

@@ -239,4 +239,34 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "csuite_dispatch",
+            "description": "Dispatch a task to C-Suite executives (CTO, COO, CFO, CISO). Routes through the native Coordinator — no webhooks, direct execution.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "description": {
+                        "type": "string",
+                        "description": "Task description for the executive(s)",
+                    },
+                    "target": {
+                        "type": "string",
+                        "description": "Target: 'auto' (keyword-match), 'all' (fan-out), or specific role: cto, coo, cfo, ciso. Default: auto",
+                    },
+                    "priority": {
+                        "type": "string",
+                        "enum": ["low", "normal", "high", "critical"],
+                        "description": "Task priority. Default: normal",
+                    },
+                    "max_iterations": {
+                        "type": "number",
+                        "description": "Max iterations for the executive agent loop. Default: 25",
+                    },
+                },
+                "required": ["description"],
+            },
+        },
+    },
 ]

@@ -91,6 +91,8 @@ aria/csuite/roles_v1.py
 
 # Sensitive operational files — NEVER commit
 .core/logs/
+.core/memory/
+.core/reports/
+.core/secrets/
 .core/operations/comb-flush-security-audit.md
 .core/operations/comb-security-audit.md
-.core/

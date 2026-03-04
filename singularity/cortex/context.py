@@ -91,6 +91,23 @@ class ContextAssembler:
         
         return messages
     
+    @staticmethod
+    def _estimate_message_chars(msg: ChatMessage) -> int:
+        """Estimate the character cost of a message, including tool_calls metadata."""
+        chars = len(msg.content or "")
+        if msg.tool_calls:
+            # tool_calls is a list of dicts — estimate their JSON size
+            import json
+            try:
+                chars += len(json.dumps(msg.tool_calls))
+            except (TypeError, ValueError):
+                chars += 200 * len(msg.tool_calls)  # fallback estimate
+        if msg.tool_call_id:
+            chars += len(msg.tool_call_id) + 20  # overhead for the field
+        if msg.name:
+            chars += len(msg.name) + 10
+        return chars
+    
     def _fit_history(
         self,
         history: list[ChatMessage],
@@ -100,6 +117,8 @@ class ContextAssembler:
         
         Strategy: Keep the most recent messages. Drop oldest first.
         Estimate: ~4 chars per token (rough but fast).
+        Preserves tool call integrity: assistant tool_calls messages and
+        their corresponding tool result messages are kept/dropped as a unit.
         
         TODO: Use proper tokenizer when GLADIUS provides one.
         """
@@ -109,23 +128,45 @@ class ContextAssembler:
         # Estimate tokens (rough: 4 chars ≈ 1 token)
         budget_chars = budget_tokens * 4
         
-        # Calculate total size
-        total_chars = sum(len(m.content or "") for m in history)
+        # Calculate total size (including tool_calls metadata)
+        total_chars = sum(self._estimate_message_chars(m) for m in history)
         
         if total_chars <= budget_chars:
             return list(history)  # Everything fits
         
-        # Drop oldest messages until we fit
-        result = []
+        # Group messages into "units" that must stay together:
+        # An assistant message with tool_calls + all following tool results = one unit
+        units: list[list[int]] = []  # each unit is a list of indices
+        i = 0
+        while i < len(history):
+            msg = history[i]
+            if msg.role == "assistant" and msg.tool_calls:
+                # Start a unit: this assistant msg + all following tool results
+                unit = [i]
+                j = i + 1
+                while j < len(history) and history[j].role == "tool":
+                    unit.append(j)
+                    j += 1
+                units.append(unit)
+                i = j
+            else:
+                units.append([i])
+                i += 1
+        
+        # Walk backwards (newest units first), keeping units that fit
+        kept_indices: set[int] = set()
         running_chars = 0
         
-        # Walk backwards (newest first)
-        for msg in reversed(history):
-            msg_chars = len(msg.content or "")
-            if running_chars + msg_chars > budget_chars:
+        for unit in reversed(units):
+            unit_chars = sum(self._estimate_message_chars(history[idx]) for idx in unit)
+            if running_chars + unit_chars > budget_chars:
                 break
-            result.insert(0, msg)
-            running_chars += msg_chars
+            for idx in unit:
+                kept_indices.add(idx)
+            running_chars += unit_chars
+        
+        # Build result preserving original order
+        result = [history[i] for i in range(len(history)) if i in kept_indices]
         
         if len(result) < len(history):
             dropped = len(history) - len(result)
@@ -157,7 +198,7 @@ class ContextAssembler:
             return False
         
         budget_chars = self.context_budget * 4  # rough token-to-char
-        total_chars = sum(len(m.content or "") for m in history)
+        total_chars = sum(self._estimate_message_chars(m) for m in history)
         
         return total_chars > (budget_chars * threshold)
 

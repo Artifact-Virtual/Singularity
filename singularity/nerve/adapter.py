@@ -40,9 +40,9 @@ class TokenBucketLimiter:
     """Rate limiter using token bucket algorithm."""
 
     def __init__(self, max_per_second: float, burst_size: Optional[int] = None):
-        self._max_tokens = burst_size or int(max_per_second)
+        self._max_tokens = burst_size or max(int(max_per_second), 1)
         self._tokens = float(self._max_tokens)
-        self._refill_rate = max_per_second / 1000.0  # tokens per ms
+        self._refill_rate = max(max_per_second, 0.001) / 1000.0  # tokens per ms, min 0.001/s
         self._last_refill = time.monotonic() * 1000  # ms
 
     def check(self) -> float:
@@ -208,7 +208,10 @@ class BaseAdapter(ABC):
             delay = self._rate_limiter.check()
             if delay > 0:
                 await asyncio.sleep(delay)
-            self._rate_limiter.consume()
+            if not self._rate_limiter.consume():
+                # Token still unavailable after waiting — wait one more cycle
+                await asyncio.sleep(0.2)
+                self._rate_limiter.consume()  # best-effort after second wait
 
         try:
             return await self.platform_send(chat_id, message)

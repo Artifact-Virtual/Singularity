@@ -358,6 +358,7 @@ class CopilotProxyProvider(ChatProvider):
                             )
                             yield StreamChunk(finish_reason=reason)
             
+            # Stream completed successfully (whether via [DONE] return or natural end)
             self.record_success()
         except Exception as e:
             self.record_failure(e)
