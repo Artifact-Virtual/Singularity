@@ -353,6 +353,7 @@ class CortexEngine:
             persona_prompt=persona_prompt,
             rules=self.config.rules,
             comb_context=comb_context,
+            workspace=self.workspace,
         )
         
         self._prompt_loaded = True

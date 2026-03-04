@@ -47,7 +47,7 @@ class AgentConfig:
     max_iterations: int = 20
     expanded_iterations: int = 100  # When PULSE auto-expands
     expansion_threshold: int = 18   # Expand at this iteration count
-    temperature: float = 0.7
+    temperature: float = 0.3        # Low temperature = grounded, precise responses
     max_tokens: int = 8192
     parallel_tools: bool = True     # Execute tool calls in parallel
 

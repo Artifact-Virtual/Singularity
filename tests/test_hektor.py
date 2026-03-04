@@ -57,8 +57,8 @@ class TestHektorMemory:
         # Create a minimal workspace
         core = tmp_path / "singularity" / ".core"
         core.mkdir(parents=True)
-        (core / "SOUL.md").write_text("I am Aria. I coordinate.")
-        (core / "IDENTITY.md").write_text("Name: Aria. Emoji: ⚡")
+        (core / "SOUL.md").write_text("I am Singularity. I coordinate.")
+        (core / "IDENTITY.md").write_text("Name: Singularity. Emoji: ⚡")
 
         memory = tmp_path / "memory"
         memory.mkdir()
@@ -90,5 +90,5 @@ class TestHektorMemory:
     async def test_auto_index_on_search(self, tmp_workspace):
         h = HektorMemory(workspace=tmp_workspace)
         # Search without explicit index — should auto-index
-        results = await h.search("Aria coordinate")
+        results = await h.search("Singularity coordinate")
         assert len(results) >= 1

@@ -75,7 +75,7 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "write",
-            "description": "Write content to a file. Creates parent directories automatically.",
+            "description": "Write content to a file. Creates parent directories automatically. USE THIS to create new files or overwrite existing ones. Do not describe file contents — write them.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -96,7 +96,7 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "edit",
-            "description": "Edit a file by replacing exact text.",
+            "description": "Edit a file by replacing exact text. USE THIS to apply code changes, fix bugs, update configs. Do not narrate edits — execute them. Find the exact oldText in the file, replace with newText.",
             "parameters": {
                 "type": "object",
                 "properties": {

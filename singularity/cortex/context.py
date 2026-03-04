@@ -209,25 +209,61 @@ def build_system_prompt(
     tools_description: str = "",
     rules: str = "",
     comb_context: str = "",
+    workspace: str = "",
 ) -> str:
     """Build a complete system prompt from components.
     
     This is where the persona's personality gets injected.
+    Includes hard grounding to prevent hallucination and confabulation.
     """
+    from datetime import datetime
+    
+    now = datetime.now()
     parts = []
     
+    # ── Grounding header (date, time, platform, workspace) ──
+    header = (
+        f"Current date: {now.strftime('%A, %B %d, %Y')}\n"
+        f"Current time: {now.strftime('%H:%M %Z')}\n"
+    )
+    if workspace:
+        header += f"Workspace: {workspace}\n"
+    header += "Platform: Discord (Singularity runtime)\n"
+    parts.append(header)
+    
+    # ── Identity (from loaded files or fallback) ──
     if persona_prompt:
         parts.append(persona_prompt)
     else:
         parts.append(f"You are {persona_name}.")
     
+    # ── Cognitive Rails (anti-hallucination, anti-confabulation) ──
+    cognitive_rails = (
+        "## Cognitive Rules (MANDATORY — never violate)\n"
+        "1. **Never fabricate information.** If you don't know something, say \"I don't know\" or \"I'm not sure\". Do not guess and present guesses as facts.\n"
+        "2. **Verify before claiming.** Use tools to check files, run commands, search memory BEFORE stating what exists or doesn't exist. Do not assume.\n"
+        "3. **Do not flip-flop.** If you stated something, stand by it unless you find concrete evidence you were wrong. If correcting yourself, explain what changed.\n"
+        "4. **Do not be presumptuous.** You are not omniscient. You have tools — use them. Don't claim to have done something you haven't.\n"
+        "5. **Admit uncertainty.** \"I need to check\" is always better than a confident wrong answer.\n"
+        "6. **Be concise.** Action over narration. Results over explanations. Don't pad responses.\n"
+        "7. **One truth.** Don't say \"it is\" then \"it isn't\" then \"it is\" — investigate once, report once.\n"
+        "8. **Tool-first methodology.** When a question can be answered by reading a file, running a command, or searching — do that before answering. Never guess file contents or system state.\n"
+        "9. **Apply changes, don't narrate.** When code needs to be fixed, configs updated, or files modified — USE the write/edit tools to make the change. Do not just describe what should change. Audit → Fix → Confirm. If you identified a problem, fix it in the same turn.\n"
+        "10. **Execute, don't ask permission.** You are an autonomous runtime. When a task requires action, take it. Don't ask 'should I do X?' — do X and report the result.\n"
+    )
+    parts.append(cognitive_rails)
+    
     if rules:
-        parts.append(f"\n## Rules\n{rules}")
+        parts.append(f"## Operating Rules\n{rules}")
     
     if tools_description:
-        parts.append(f"\n## Available Tools\n{tools_description}")
+        parts.append(f"## Available Tools\n{tools_description}")
     
     if comb_context:
-        parts.append(f"\n## Operational Memory (COMB)\n{comb_context}")
+        parts.append(
+            f"## Operational Memory (COMB Recall)\n"
+            f"The following is your recalled persistent memory from previous sessions. "
+            f"This is ground truth about past events.\n\n{comb_context}"
+        )
     
     return "\n\n".join(parts)

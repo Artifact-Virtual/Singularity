@@ -18,7 +18,7 @@ inhabit the Singularity runtime. Fresh slate. No corruption.
 Usage:
     python3 scripts/fresh_install.py                    # Interactive
     python3 scripts/fresh_install.py --manifest agent.yaml  # From manifest
-    python3 scripts/fresh_install.py --name "Aria" --emoji "⚡" --role "C-Suite Coordinator"
+    python3 scripts/fresh_install.py --name "Singularity" --emoji "⚡" --role "Autonomous Enterprise Runtime"
 
 The manifest file (agent.yaml) is the single source of truth
 for WHO the agent is. Everything else is generated from it.
