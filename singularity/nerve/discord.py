@@ -173,6 +173,8 @@ class DiscordAdapter(BaseAdapter):
                 self._id, client.user.name, self._bot_id,
             )
             self._ready_event.set()
+            # ── Startup announcement ──
+            await self._send_boot_message()
 
         @client.event
         async def on_message(msg: DiscordMessage):
@@ -236,6 +238,28 @@ class DiscordAdapter(BaseAdapter):
                         "[%s] Deploy exception in %s: %s",
                         self._id, guild.name, exc, exc_info=True,
                     )
+
+    async def _send_boot_message(self) -> None:
+        """Send startup announcement to the bridge channel."""
+        BRIDGE_CHANNEL = "1477331186912329800"
+        ALI_ID = "193011943382974466"
+        try:
+            boot_msg = (
+                f"<@{ALI_ID}> ⚡ **Singularity Online.**\n\n"
+                "Brutalist mandate loaded. Cognitive rails active. "
+                "Source of truth for Artifact Virtual — operational.\n\n"
+                "No margin for BS. Ready to work."
+            )
+            result = await self.platform_send(
+                BRIDGE_CHANNEL,
+                OutboundMessage(content=boot_msg),
+            )
+            if result.success:
+                logger.info("[%s] Boot message sent to bridge", self._id)
+            else:
+                logger.warning("[%s] Boot message failed: %s", self._id, result.error)
+        except Exception as exc:
+            logger.warning("[%s] Boot message error: %s", self._id, exc)
 
     async def platform_disconnect(self) -> None:
         if self._client:
