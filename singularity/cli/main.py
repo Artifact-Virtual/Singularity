@@ -76,6 +76,22 @@ def main():
     p_poa_audit = poa_sub.add_parser("audit", help="Run POA audit")
     p_poa_audit.add_argument("product", help="Product ID")
 
+    p_poa_setup = poa_sub.add_parser("setup", help="Double-audit setup flow (scan → review → focused audit → approve)")
+    p_poa_setup.add_argument("--workspace", "-w", default=".", help="Workspace to scan")
+    p_poa_setup.add_argument("--auto-approve", action="store_true", help="Auto-approve all green POAs")
+    p_poa_setup.add_argument("--json", action="store_true", help="Output JSON instead of interactive")
+
+    p_poa_kill = poa_sub.add_parser("kill", help="Kill (retire) a POA")
+    p_poa_kill.add_argument("product", help="Product ID to kill")
+
+    p_poa_pause = poa_sub.add_parser("pause", help="Pause an active POA")
+    p_poa_pause.add_argument("product", help="Product ID to pause")
+
+    p_poa_resume = poa_sub.add_parser("resume", help="Resume a paused POA")
+    p_poa_resume.add_argument("product", help="Product ID to resume")
+
+    p_poa_status = poa_sub.add_parser("status", help="POA system status summary")
+
     # ── scale-report ──
     p_scale = sub.add_parser("scale-report", help="Scaling analysis")
     p_scale.add_argument("--workspace", "-w", default=".", help="Workspace path")
@@ -740,6 +756,249 @@ def cmd_poa(args):
         except Exception as e:
             # Immune feedback is enhancement, not critical — don't fail audit
             logger.debug(f"Immune feedback skipped: {e}")
+
+    elif args.poa_command == "setup":
+        _cmd_poa_setup(args)
+
+    elif args.poa_command == "kill":
+        header("SINGULARITY [AE] — Kill POA")
+        config = mgr.get(args.product)
+        if not config:
+            print(f"❌ POA not found: {args.product}")
+            sys.exit(1)
+        if mgr.retire(args.product):
+            from .formatters import success as _suc
+            _suc(f"POA '{config.product_name}' retired (killed).")
+        else:
+            from .formatters import error as _err
+            _err(f"Failed to retire POA '{args.product}'.")
+
+    elif args.poa_command == "pause":
+        header("SINGULARITY [AE] — Pause POA")
+        config = mgr.get(args.product)
+        if not config:
+            print(f"❌ POA not found: {args.product}")
+            sys.exit(1)
+        if mgr.pause(args.product):
+            from .formatters import success as _suc
+            _suc(f"POA '{config.product_name}' paused.")
+        else:
+            from .formatters import error as _err
+            _err(f"Failed to pause POA '{args.product}'. Status: {config.status.value}")
+
+    elif args.poa_command == "resume":
+        header("SINGULARITY [AE] — Resume POA")
+        config = mgr.get(args.product)
+        if not config:
+            print(f"❌ POA not found: {args.product}")
+            sys.exit(1)
+        if mgr.activate(args.product):
+            from .formatters import success as _suc
+            _suc(f"POA '{config.product_name}' resumed.")
+        else:
+            from .formatters import error as _err
+            _err(f"Failed to resume POA '{args.product}'. Status: {config.status.value}")
+
+    elif args.poa_command == "status":
+        header("SINGULARITY [AE] — POA Status")
+        summary = mgr.status_summary()
+        all_poas = mgr.list_all()
+        
+        from .formatters import kv as _kv, fmt, bold
+        print(f"  {_kv('Total POAs', summary.get('total', 0))}")
+        for status_name in ["active", "proposed", "paused", "retired", "error"]:
+            count = summary.get(status_name, 0)
+            if count:
+                icon = {"active": "🟢", "proposed": "📋", "paused": "⏸️", "retired": "💀", "error": "🔴"}
+                print(f"  {icon.get(status_name, '⚪')} {status_name.capitalize()}: {count}")
+        
+        if all_poas:
+            print()
+            for p in all_poas:
+                icon = {"active": "🟢", "proposed": "📋", "paused": "⏸️", "retired": "💀"}.get(p.status.value, "⚪")
+                ep_count = len(p.endpoints)
+                svc = f" svc:{p.service_name}" if p.service_name else ""
+                print(f"    {icon} {p.product_name} ({p.product_id}) [{p.status.value}] {ep_count} endpoints{svc}")
+
+
+def _cmd_poa_setup(args):
+    """Double-audit POA setup flow."""
+    from .formatters import (
+        header, banner, section, success, error, warn, info, dim,
+        kv, fmt, Table, bold,
+    )
+    from singularity.poa.setup import SetupFlow
+    
+    workspace = os.path.abspath(getattr(args, 'workspace', '.'))
+    sg_dir = os.path.join(workspace, ".singularity")
+    
+    print()
+    print(banner([
+        "SINGULARITY [AE]",
+        "POA Setup — Double Audit Flow",
+        "",
+        f"  Workspace:  {workspace}",
+    ]))
+    print()
+    
+    flow = SetupFlow(workspace=workspace, singularity_dir=sg_dir)
+    
+    # ── Phase 1: Broad Audit ──
+    print(section("Phase 1 — Broad Audit (Full Workspace Scan)"))
+    print()
+    
+    broad = flow.broad_audit()
+    
+    health = broad.analysis.health_score
+    health_icon = "🟢" if health >= 70 else "🟡" if health >= 40 else "🔴"
+    print(f"  {kv('Projects', broad.analysis.total_projects)}")
+    print(f"  {kv('LOC', f'{broad.analysis.total_lines:,}')}")
+    print(f"  {kv('Health', f'{health_icon} {health}/100')}")
+    print(f"  {kv('Scan time', f'{broad.scan.scan_duration_ms:.0f}ms')}")
+    print()
+    
+    # Show top projects
+    sorted_projects = sorted(
+        broad.analysis.project_analyses,
+        key=lambda p: p.project.total_lines,
+        reverse=True,
+    )
+    if sorted_projects:
+        t = Table(["Project", "LOC", "Grade", "Live"], align=["l", "r", "c", "c"])
+        for pa in sorted_projects[:15]:
+            grade_colors = {"A": fmt.BR_GREEN, "B": fmt.BR_GREEN, "C": fmt.BR_YELLOW, "D": fmt.BR_YELLOW}
+            grade_c = grade_colors.get(pa.maturity.grade, fmt.BR_RED)
+            live = "✅" if pa.project.is_live else ""
+            t.add([
+                pa.project.name[:40],
+                f"{pa.project.total_lines:,}",
+                f"{grade_c}{pa.maturity.grade}{fmt.RESET}",
+                live,
+            ])
+        if len(sorted_projects) > 15:
+            t.add([dim(f"... +{len(sorted_projects) - 15} more"), "", "", ""])
+        print(t.render())
+    print()
+    
+    # ── Phase 2: Review & Tighten ──
+    print(section("Phase 2 — Review & Tighten"))
+    print()
+    
+    review = flow.review(broad)
+    
+    print(f"  {kv('Products identified', f'{fmt.BR_GREEN}{review.product_count}{fmt.RESET}')}")
+    print(f"  {kv('Filtered out', f'{fmt.DIM}{review.skipped_count}{fmt.RESET}')}")
+    print()
+    
+    if review.products:
+        print(f"  {bold('Products (will be audited):')}")
+        t = Table(["Product", "Priority", "LOC", "Grade", "Reason"], align=["l", "c", "r", "c", "l"])
+        priority_colors = {
+            "critical": f"{fmt.BR_RED}CRITICAL{fmt.RESET}",
+            "high": f"{fmt.BR_YELLOW}HIGH{fmt.RESET}",
+            "medium": f"{fmt.BR_CYAN}MEDIUM{fmt.RESET}",
+            "low": f"{fmt.DIM}LOW{fmt.RESET}",
+        }
+        for c in review.products:
+            t.add([
+                c.project_name[:30],
+                priority_colors.get(c.priority, c.priority),
+                f"{c.total_lines:,}",
+                c.maturity_grade,
+                (c.reasons[0][:45] if c.reasons else "—"),
+            ])
+        print(t.render())
+        print()
+    
+    if review.skipped:
+        print(f"  {bold('Filtered out:')}")
+        for c in review.skipped[:10]:
+            reason = c.reasons[0] if c.reasons else "no reason"
+            print(f"    {fmt.DIM}✗ {c.project_name} — {reason}{fmt.RESET}")
+        if len(review.skipped) > 10:
+            print(f"    {dim(f'... +{len(review.skipped) - 10} more')}")
+        print()
+    
+    # ── Phase 3: Focused Audit ──
+    print(section("Phase 3 — Focused Audit (Health Checks)"))
+    print()
+    
+    focused = flow.focused_audit(review)
+    
+    print(f"  {kv('Green', f'{fmt.BR_GREEN}{focused.green_count}{fmt.RESET}')}")
+    print(f"  {kv('Yellow', f'{fmt.BR_YELLOW}{focused.yellow_count}{fmt.RESET}')}")
+    print(f"  {kv('Red', f'{fmt.BR_RED}{focused.red_count}{fmt.RESET}')}")
+    print()
+    
+    for classification, audit in focused.audits:
+        icon = {"green": "🟢", "yellow": "🟡", "red": "🔴"}.get(audit.overall_status, "⚪")
+        print(f"  {icon} {classification.project_name}: {audit.passed}/{len(audit.checks)} checks, {audit.duration_ms:.0f}ms")
+        for check in audit.checks:
+            c_icon = "✅" if check.passed else ("🔴" if check.severity == "critical" else "⚠️")
+            print(f"      {c_icon} {check.name}: {check.message}")
+    print()
+    
+    # ── Phase 4: Present for Approval ──
+    print(section("Phase 4 — Proposed POAs"))
+    print()
+    
+    report = flow.present(broad, review, focused)
+    
+    if not report.proposed_poas:
+        print(f"  {warn('No products qualified for POA assignment.')}")
+        return
+    
+    # Build lookup for audit status
+    audit_map = {}
+    for classification, audit in focused.audits:
+        audit_map[classification.project_name] = audit
+    
+    t = Table(["#", "Product", "Priority", "Status", "Endpoints", "Service"], align=["r", "l", "c", "c", "r", "l"])
+    for i, poa in enumerate(report.proposed_poas, 1):
+        status = poa.get("audit_status", "—")
+        icon = {"green": f"{fmt.BR_GREEN}GREEN{fmt.RESET}", "yellow": f"{fmt.BR_YELLOW}YELLOW{fmt.RESET}", "red": f"{fmt.BR_RED}RED{fmt.RESET}"}.get(status, "—")
+        ep_count = len(poa.get("endpoints", []))
+        svc = poa.get("service_name", "—") or "—"
+        pri = {"critical": f"{fmt.BR_RED}CRIT{fmt.RESET}", "high": f"{fmt.BR_YELLOW}HIGH{fmt.RESET}", "medium": f"{fmt.BR_CYAN}MED{fmt.RESET}", "low": f"{fmt.DIM}LOW{fmt.RESET}"}.get(poa["priority"], poa["priority"])
+        t.add([str(i), poa["product_name"][:30], pri, icon, str(ep_count), svc[:20]])
+    print(t.render())
+    print()
+    
+    # Save report
+    if getattr(args, 'json', False):
+        print(json.dumps(report.to_dict(), indent=2))
+        return
+    
+    # ── Phase 5: Approval ──
+    if getattr(args, 'auto_approve', False):
+        # Auto-approve only green POAs
+        green_ids = [
+            poa["product_id"] for poa in report.proposed_poas
+            if poa.get("audit_status") == "green"
+        ]
+        if green_ids:
+            activated = flow.activate(green_ids, review)
+            print(f"  {success(f'Auto-approved {len(activated)} green POAs:')}")
+            for poa in activated:
+                print(f"    🟢 {poa.product_name} ({poa.product_id})")
+        else:
+            print(f"  {warn('No green POAs to auto-approve.')}")
+    else:
+        # Interactive approval
+        print(f"  {info('Review proposed POAs above.')}")
+        print(f"  {info('To approve:')}")
+        print(f"    singularity poa setup --auto-approve    (approve all green)")
+        print(f"    singularity poa create <name> --approve (create individual)")
+        print()
+        print(f"  {info('To manage:')}")
+        print(f"    singularity poa list     — see all POAs")
+        print(f"    singularity poa kill ID  — retire a POA")
+        print(f"    singularity poa pause ID — pause monitoring")
+        print(f"    singularity poa status   — overview")
+    
+    print()
+    print(f"  {dim(f'Full report: .singularity/audits/setup/report-latest.md')}")
+    print()
 
 
 def cmd_scale_report(args):

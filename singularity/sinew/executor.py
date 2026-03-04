@@ -752,3 +752,159 @@ class ToolExecutor:
             return report.summary()
         except Exception as e:
             return f"NEXUS evolution error: {e}"
+
+    async def _tool_poa_setup(self, args: dict) -> str:
+        """Run the double-audit POA setup flow."""
+        from singularity.poa.setup import SetupFlow
+        import json as _json
+        
+        workspace = args.get("workspace", self._workspace)
+        auto_approve = args.get("auto_approve", False)
+        
+        try:
+            flow = SetupFlow(workspace=workspace)
+            report = flow.run()
+            
+            result_lines = [
+                f"📊 POA Setup — Double Audit Complete",
+                f"",
+                f"**Phase 1 (Broad):** {report.broad_summary.get('total_projects', '?')} projects, "
+                f"{report.broad_summary.get('total_lines', 0):,} LOC, "
+                f"health {report.broad_summary.get('health_score', '?')}/100",
+                f"",
+                f"**Phase 2 (Review):** {report.review_summary.get('product_count', '?')} products identified, "
+                f"{report.review_summary.get('skipped_count', '?')} filtered out",
+                f"",
+                f"**Phase 3 (Focused):** {len(report.focused_results)} products audited",
+            ]
+            
+            # Status summary
+            green = sum(1 for r in report.focused_results if r.get("status") == "green")
+            yellow = sum(1 for r in report.focused_results if r.get("status") == "yellow")
+            red = sum(1 for r in report.focused_results if r.get("status") == "red")
+            result_lines.append(f"  🟢 {green} green | 🟡 {yellow} yellow | 🔴 {red} red")
+            result_lines.append(f"")
+            
+            # Proposed POAs
+            result_lines.append(f"**Phase 4:** {len(report.proposed_poas)} POAs proposed")
+            for poa in report.proposed_poas[:10]:
+                status = poa.get("audit_status", "?")
+                icon = {"green": "🟢", "yellow": "🟡", "red": "🔴"}.get(status, "⚪")
+                result_lines.append(
+                    f"  {icon} {poa['product_name']} [{poa['priority']}] — "
+                    f"{len(poa.get('endpoints', []))} endpoints"
+                )
+            if len(report.proposed_poas) > 10:
+                result_lines.append(f"  ... +{len(report.proposed_poas) - 10} more")
+            
+            # Auto-approve if requested
+            if auto_approve:
+                from singularity.poa.setup import ReviewResult, ProductClassification
+                # Reload the review from disk
+                review_path = flow.sg_dir / "audits" / "setup" / "review" / "latest.json"
+                if review_path.exists():
+                    review_data = _json.loads(review_path.read_text())
+                    # Reconstruct a minimal ReviewResult
+                    review = ReviewResult()
+                    for pd in review_data.get("products", []):
+                        pc = ProductClassification(
+                            project_name=pd["project_name"],
+                            project_path=pd["project_path"],
+                            total_lines=pd.get("total_lines", 0),
+                            is_product=True,
+                            proposed_config=pd.get("proposed_config"),
+                        )
+                        review.products.append(pc)
+                    
+                    green_ids = [
+                        poa["product_id"] for poa in report.proposed_poas
+                        if poa.get("audit_status") == "green"
+                    ]
+                    activated = flow.activate(green_ids, review)
+                    result_lines.append(f"")
+                    result_lines.append(f"✅ Auto-approved {len(activated)} green POAs")
+                    for a in activated:
+                        result_lines.append(f"  🟢 {a.product_name}")
+            
+            return "\n".join(result_lines)
+            
+        except Exception as e:
+            logger.error(f"POA setup error: {e}", exc_info=True)
+            return f"POA setup error: {e}"
+
+    async def _tool_poa_manage(self, args: dict) -> str:
+        """Manage POA lifecycle."""
+        from singularity.poa.manager import POAManager
+        from singularity.poa.runtime import POARuntime
+        
+        action = args.get("action", "list")
+        product_id = args.get("product_id", "")
+        
+        sg_dir = Path(self._workspace) / ".singularity"
+        if not sg_dir.exists():
+            return "Error: workspace not initialized (.singularity not found)"
+        
+        mgr = POAManager(sg_dir)
+        
+        if action == "list":
+            poas = mgr.list_all()
+            if not poas:
+                return "No POAs configured."
+            lines = ["📋 POA List:"]
+            for p in poas:
+                icon = {"active": "🟢", "proposed": "📋", "paused": "⏸️", "retired": "💀"}.get(p.status.value, "⚪")
+                ep_info = f" ({len(p.endpoints)} endpoints)" if p.endpoints else ""
+                svc_info = f" svc:{p.service_name}" if p.service_name else ""
+                lines.append(f"  {icon} {p.product_name} ({p.product_id}) [{p.status.value}]{ep_info}{svc_info}")
+            return "\n".join(lines)
+        
+        elif action == "status":
+            summary = mgr.status_summary()
+            lines = [f"📊 POA Status — {summary.get('total', 0)} total"]
+            for s in ["active", "proposed", "paused", "retired", "error"]:
+                count = summary.get(s, 0)
+                if count:
+                    lines.append(f"  {s}: {count}")
+            return "\n".join(lines)
+        
+        elif action == "audit":
+            if not product_id:
+                return "Error: product_id required for audit"
+            config = mgr.get(product_id)
+            if not config:
+                return f"Error: POA '{product_id}' not found"
+            report = POARuntime.run_audit(config)
+            POARuntime.save_audit(report, sg_dir / "poas")
+            return report.to_markdown()
+        
+        elif action == "kill":
+            if not product_id:
+                return "Error: product_id required for kill"
+            config = mgr.get(product_id)
+            if not config:
+                return f"Error: POA '{product_id}' not found"
+            if mgr.retire(product_id):
+                return f"💀 POA '{config.product_name}' retired."
+            return f"Error: failed to retire '{product_id}' (status: {config.status.value})"
+        
+        elif action == "pause":
+            if not product_id:
+                return "Error: product_id required for pause"
+            config = mgr.get(product_id)
+            if not config:
+                return f"Error: POA '{product_id}' not found"
+            if mgr.pause(product_id):
+                return f"⏸️ POA '{config.product_name}' paused."
+            return f"Error: failed to pause '{product_id}' (status: {config.status.value})"
+        
+        elif action == "resume":
+            if not product_id:
+                return "Error: product_id required for resume"
+            config = mgr.get(product_id)
+            if not config:
+                return f"Error: POA '{product_id}' not found"
+            if mgr.activate(product_id):
+                return f"▶️ POA '{config.product_name}' resumed."
+            return f"Error: failed to resume '{product_id}' (status: {config.status.value})"
+        
+        return f"Unknown action: {action}"

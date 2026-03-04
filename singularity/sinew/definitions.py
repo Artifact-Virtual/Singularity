@@ -378,4 +378,47 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "poa_setup",
+            "description": "Run the double-audit POA setup flow on a workspace. Phase 1: broad scan. Phase 2: review & tighten (classify products vs noise). Phase 3: focused audit (health checks on real products). Phase 4: present proposals for approval. Returns JSON report.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "workspace": {
+                        "type": "string",
+                        "description": "Workspace path to scan. Default: current workspace.",
+                    },
+                    "auto_approve": {
+                        "type": "boolean",
+                        "description": "Auto-approve all green POAs. Default: false (present for review).",
+                    },
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "poa_manage",
+            "description": "Manage POA lifecycle: list, status, audit, kill, pause, resume.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "action": {
+                        "type": "string",
+                        "enum": ["list", "status", "audit", "kill", "pause", "resume"],
+                        "description": "POA management action.",
+                    },
+                    "product_id": {
+                        "type": "string",
+                        "description": "Product ID (required for audit/kill/pause/resume).",
+                    },
+                },
+                "required": ["action"],
+            },
+        },
+    },
 ]
