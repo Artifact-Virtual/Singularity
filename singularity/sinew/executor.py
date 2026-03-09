@@ -64,6 +64,7 @@ class ToolExecutor:
         self._nexus: Any = None  # Set by runtime after NEXUS boot
         self._comb: Any = None  # Set by runtime after memory boot
         self._poa_manager: Any = None  # Set by runtime after POA boot
+        self._atlas: Any = None  # Set by runtime after ATLAS boot
         self._hektor: Any = None  # Lazy-initialized HektorMemory instance
         self._current_sender_id: str | None = None  # For @mention enforcement
     
@@ -86,6 +87,10 @@ class ToolExecutor:
     def set_poa_manager(self, manager: Any) -> None:
         """Wire the POA manager for poa_manage tool."""
         self._poa_manager = manager
+    
+    def set_atlas(self, atlas: Any) -> None:
+        """Wire the ATLAS board manager for atlas_* tools."""
+        self._atlas = atlas
     
     def set_current_sender(self, sender_id: str | None) -> None:
         """Set the current message sender for @mention enforcement."""
@@ -993,3 +998,77 @@ class ToolExecutor:
             return f"Error: failed to resume '{product_id}' (status: {config.status.value})"
         
         return f"Unknown action: {action}"
+
+    # ── ATLAS (Board Manager) ────────────────────────────
+
+    async def _tool_atlas_status(self, args: dict) -> str:
+        """Get ATLAS board manager status."""
+        if not self._atlas:
+            return "ATLAS board manager is not initialized."
+        try:
+            status = self._atlas.get_status()
+            lines = ["**ATLAS Board Manager**", ""]
+            lines.append(f"Cycles: {status['cycle_count']}")
+            lines.append(f"Last cycle: {status['last_cycle'] or 'never'}")
+            lines.append(f"Running: {status['running']}")
+            lines.append(f"Modules tracked: {status['modules']}")
+
+            by_status = status.get("by_status", {})
+            if by_status:
+                parts = [f"{k}: {v}" for k, v in sorted(by_status.items())]
+                lines.append(f"By status: {', '.join(parts)}")
+
+            by_machine = status.get("by_machine", {})
+            if by_machine:
+                parts = [f"{k}: {v}" for k, v in sorted(by_machine.items())]
+                lines.append(f"By machine: {', '.join(parts)}")
+
+            lines.append(f"Open issues: {status['issues']}")
+
+            if status.get("new_modules"):
+                lines.append(f"New (last cycle): {', '.join(status['new_modules'])}")
+            if status.get("gone_modules"):
+                lines.append(f"Gone (last cycle): {', '.join(status['gone_modules'])}")
+
+            return "\n".join(lines)
+        except Exception as e:
+            return f"ATLAS status error: {e}"
+
+    async def _tool_atlas_topology(self, args: dict) -> str:
+        """Get the enterprise topology map."""
+        if not self._atlas:
+            return "ATLAS board manager is not initialized."
+        try:
+            # Run a scan if no data yet
+            if not self._atlas.graph.modules:
+                await self._atlas.run_cycle()
+            return self._atlas.get_topology()
+        except Exception as e:
+            return f"ATLAS topology error: {e}"
+
+    async def _tool_atlas_module(self, args: dict) -> str:
+        """Get detailed report for a specific module."""
+        if not self._atlas:
+            return "ATLAS board manager is not initialized."
+        module_id = args.get("module_id", "")
+        if not module_id:
+            return "Error: module_id is required."
+        try:
+            # Run a scan if no data yet
+            if not self._atlas.graph.modules:
+                await self._atlas.run_cycle()
+            return self._atlas.get_module_detail(module_id)
+        except Exception as e:
+            return f"ATLAS module error: {e}"
+
+    async def _tool_atlas_report(self, args: dict) -> str:
+        """Generate the full ATLAS board report."""
+        if not self._atlas:
+            return "ATLAS board manager is not initialized."
+        try:
+            # Run a fresh cycle for current data
+            await self._atlas.run_cycle()
+            return self._atlas.get_board_report()
+        except Exception as e:
+            return f"ATLAS report error: {e}"
+

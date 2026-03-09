@@ -115,6 +115,8 @@ class Runtime:
         self.dispatcher = None   # CSUITE dispatch interface
         self.deployer = None     # NERVE guild deployer
         self.nexus = None        # NEXUS self-optimization engine
+        self._nexus_daemon = None  # NEXUS evolution daemon (subagent)
+        self.atlas = None        # ATLAS board manager
         
         self._running = False
         self._boot_time: float | None = None
@@ -185,6 +187,14 @@ class Runtime:
         # Phase 8.5: POA Monitoring (requires PULSE)
         logger.info("[8.5/12] Initializing POA monitoring...")
         await self._boot_poa_monitoring()
+
+        # Phase 8.6: NEXUS Evolution Daemon (requires NEXUS + PULSE)
+        logger.info("[8.6/12] Starting NEXUS evolution daemon...")
+        await self._boot_nexus_daemon()
+
+        # Phase 8.7: ATLAS Board Manager (requires PULSE + bus)
+        logger.info("[8.7/12] Starting ATLAS board manager...")
+        await self._boot_atlas()
 
         # Phase 9: Health + Immune
         logger.info("[9/12] Initializing health monitoring (IMMUNE)...")
@@ -605,6 +615,242 @@ class Runtime:
             logger.warning(f"  NEXUS failed to initialize: {e}")
             self.nexus = None
     
+    async def _boot_nexus_daemon(self) -> None:
+        """Start the NEXUS self-evolution daemon (requires NEXUS + PULSE)."""
+        if not self.nexus:
+            logger.warning("  NEXUS daemon skipped — engine not available")
+            return
+        try:
+            from .nexus.daemon import EvolutionDaemon
+
+            self._nexus_daemon = EvolutionDaemon(
+                engine=self.nexus,
+                bus=self.bus,
+                scheduler=self.scheduler,
+                interval_seconds=6 * 3600,  # Every 6 hours
+            )
+            await self._nexus_daemon.start()
+
+            # Wire cycle reports to #governance Discord channel
+            GOVERNANCE_CHANNEL = "1327890703250096168"
+
+            async def on_nexus_cycle_done(event):
+                """Forward NEXUS evolution reports to #governance for visibility."""
+                try:
+                    if not (self.tools and self.tools._discord_adapter):
+                        return
+
+                    data = event.data if hasattr(event, 'data') else event
+                    if not isinstance(data, dict):
+                        return
+
+                    applied = data.get("applied", 0)
+                    found = data.get("found", 0)
+                    validated = data.get("validated", 0)
+                    failed = data.get("failed", 0)
+                    duration = data.get("duration", 0)
+                    is_clean = data.get("clean", False)
+                    error = data.get("error")
+                    details = data.get("details", [])
+
+                    # Build report
+                    lines = ["**NEXUS Self-Evolution Report**", ""]
+
+                    if error:
+                        lines.append(f"Status: FAILED")
+                        lines.append(f"Error: `{error}`")
+                    elif is_clean:
+                        lines.append(f"Status: CLEAN — no targets found")
+                        lines.append(f"Duration: {duration:.1f}s")
+                        lines.append("")
+                        lines.append("Codebase is fully evolved. No silent exceptions or bare excepts remaining.")
+                    else:
+                        lines.append(f"Status: **{applied} evolutions applied**")
+                        lines.append(f"Duration: {duration:.1f}s")
+                        lines.append("")
+
+                        # Analysis section
+                        lines.append("**Analysis**")
+                        lines.append(f"Scanned targets: {found}")
+                        lines.append(f"Validated (AST-safe): {validated}")
+                        if failed:
+                            lines.append(f"Failed to apply: {failed}")
+                        lines.append("")
+
+                        # Implementation section
+                        if details:
+                            lines.append("**Implementation**")
+                            for d in details[:10]:  # Cap at 10 for Discord length
+                                fname = d.get("file", "?").split("/")[-1]
+                                line_num = d.get("line", "?")
+                                cat = d.get("category", "?")
+                                desc = d.get("description", "")
+                                lines.append(f"`{fname}:{line_num}` [{cat}] {desc}")
+
+                                orig = d.get("original", "")
+                                evolved = d.get("evolved", "")
+                                if orig and evolved:
+                                    lines.append(f"```diff")
+                                    for ol in orig.splitlines()[:2]:
+                                        lines.append(f"- {ol}")
+                                    for el in evolved.splitlines()[:2]:
+                                        lines.append(f"+ {el}")
+                                    lines.append("```")
+                            if len(details) > 10:
+                                lines.append(f"... and {len(details) - 10} more changes")
+
+                    report_msg = "\n".join(lines)
+
+                    # Truncate if too long for Discord (2000 char limit)
+                    if len(report_msg) > 1900:
+                        report_msg = report_msg[:1900] + "\n... (truncated)"
+
+                    from .nerve.types import OutboundMessage
+                    await self.tools._discord_adapter.send(
+                        GOVERNANCE_CHANNEL, OutboundMessage(content=report_msg)
+                    )
+                    logger.debug("[NEXUS-DAEMON] Report sent to #governance")
+
+                except Exception as e:
+                    logger.error(f"Failed to forward NEXUS report to Discord: {e}")
+
+            self.bus.on("nexus.daemon.cycle.done", on_nexus_cycle_done)
+
+            logger.info("  NEXUS evolution daemon started (6h cycle, reports → #governance)")
+        except Exception as e:
+            logger.warning(f"  NEXUS daemon failed to start: {e}")
+            self._nexus_daemon = None
+
+    async def _boot_atlas(self) -> None:
+        """Start the ATLAS Board Manager — enterprise topology monitoring."""
+        try:
+            from .atlas.manager import Atlas
+            from .pulse.scheduler import JobConfig, JobType
+
+            state_dir = Path(self.config.tools.workspace) / ".singularity" / "atlas"
+            self.atlas = Atlas(state_dir=state_dir, bus=self.bus)
+
+            # Register PULSE jobs
+            if self.scheduler:
+                # Discovery + Coach cycle every 5 minutes
+                self.scheduler.add(JobConfig(
+                    id="atlas-cycle",
+                    name="ATLAS Board Cycle",
+                    job_type=JobType.INTERVAL,
+                    interval_seconds=300,  # 5 minutes
+                    emit_topic="atlas.cycle.trigger",
+                ))
+
+                # Board report every 6 hours
+                self.scheduler.add(JobConfig(
+                    id="atlas-board-report",
+                    name="ATLAS Board Report",
+                    job_type=JobType.INTERVAL,
+                    interval_seconds=6 * 3600,  # 6 hours
+                    emit_topic="atlas.board.trigger",
+                ))
+
+            # Wire cycle trigger
+            @self.bus.on("atlas.cycle.trigger")
+            async def on_atlas_cycle(event):
+                try:
+                    await self.atlas.run_cycle()
+                except Exception as e:
+                    logger.error(f"ATLAS cycle error: {e}")
+
+            # Wire board report trigger → Discord #dispatch
+            DISPATCH_CHANNEL = "1478716096667189292"
+
+            @self.bus.on("atlas.board.trigger")
+            async def on_atlas_board(event):
+                try:
+                    # Run a cycle first to get fresh data
+                    await self.atlas.run_cycle()
+                    report = self.atlas.get_board_report()
+
+                    if self.tools and self.tools._discord_adapter:
+                        from .nerve.types import OutboundMessage
+                        await self.tools._discord_adapter.send(
+                            DISPATCH_CHANNEL, OutboundMessage(content=report)
+                        )
+                        logger.debug("ATLAS board report sent to #dispatch")
+                except Exception as e:
+                    logger.error(f"ATLAS board report error: {e}")
+
+            # Wire alerts → Discord #dispatch
+            @self.bus.on("atlas.alert")
+            async def on_atlas_alert(event):
+                try:
+                    if not (self.tools and self.tools._discord_adapter):
+                        return
+                    data = event.data if hasattr(event, 'data') else event
+                    if not isinstance(data, dict):
+                        return
+
+                    count = data.get("count", 0)
+                    issues = data.get("issues", [])
+
+                    lines = [f"**ATLAS Alert — {count} issue{'s' if count != 1 else ''} detected**", ""]
+                    for issue in issues[:10]:
+                        sev = issue.get("severity", "?").upper()
+                        title = issue.get("title", "?")
+                        mod = issue.get("module", "?")
+                        lines.append(f"[{sev}] {title} ({mod})")
+
+                    from .nerve.types import OutboundMessage
+                    msg = "\n".join(lines)
+                    if len(msg) > 1900:
+                        msg = msg[:1900] + "\n... (truncated)"
+                    await self.tools._discord_adapter.send(
+                        DISPATCH_CHANNEL, OutboundMessage(content=msg)
+                    )
+                except Exception as e:
+                    logger.debug(f"Suppressed ATLAS alert forwarding: {e}")
+
+            # Wire module discovery notifications
+            @self.bus.on("atlas.module.discovered")
+            async def on_atlas_discovered(event):
+                try:
+                    if not (self.tools and self.tools._discord_adapter):
+                        return
+                    data = event.data if hasattr(event, 'data') else event
+                    if not isinstance(data, dict):
+                        return
+
+                    mod_id = data.get("module_id", "?")
+                    mod_type = data.get("type", "?")
+                    machine = data.get("machine", "?")
+
+                    from .nerve.types import OutboundMessage
+                    await self.tools._discord_adapter.send(
+                        DISPATCH_CHANNEL,
+                        OutboundMessage(content=f"**ATLAS: New module discovered** — `{mod_id}` ({mod_type}) on {machine}")
+                    )
+                except Exception as e:
+                    logger.debug(f"Suppressed ATLAS discovery notification: {e}")
+
+            # Wire tool executor
+            if self.tools:
+                self.tools.set_atlas(self.atlas)
+
+            # Run initial scan after 15s delay (let other systems stabilize)
+            async def _initial_atlas_scan():
+                await asyncio.sleep(15)
+                try:
+                    result = await self.atlas.run_cycle()
+                    mods = result.get("modules_found", 0)
+                    issues = result.get("issues", 0)
+                    logger.info(f"  ATLAS initial scan: {mods} modules, {issues} issues")
+                except Exception as e:
+                    logger.error(f"ATLAS initial scan failed: {e}")
+
+            asyncio.ensure_future(_initial_atlas_scan())
+            logger.info("  ATLAS board manager started (5min cycle, 6h reports → #dispatch)")
+
+        except Exception as e:
+            logger.warning(f"  ATLAS failed to start: {e}")
+            self.atlas = None
+
     async def _boot_pulse(self) -> None:
         """Initialize scheduler."""
         from .pulse.scheduler import Scheduler, JobConfig, JobType
@@ -1215,6 +1461,9 @@ class Runtime:
         if self.dispatcher:
             asyncio.create_task(self._poll_dispatch_inbox())
         
+        # Start ExfilGuard event relay watcher
+        asyncio.create_task(self._poll_exfilguard_events())
+        
         # Wait for shutdown signal
         await self._shutdown_event.wait()
         
@@ -1308,6 +1557,76 @@ class Runtime:
             
             await asyncio.sleep(2)  # Poll every 2 seconds
     
+    async def _poll_exfilguard_events(self) -> None:
+        """
+        Poll ExfilGuard event directory for Discord-bound alerts.
+        ExfilGuard writes JSON event files → we read + forward to Discord → delete.
+        """
+        event_dir = Path(self.workspace) / ".singularity" / "events" / "exfilguard"
+        event_dir.mkdir(parents=True, exist_ok=True)
+        
+        logger.info("ExfilGuard event relay started")
+        
+        while self._running:
+            try:
+                for event_file in sorted(event_dir.glob("*.json")):
+                    try:
+                        event = json.loads(event_file.read_text())
+                        event_type = event.get("event", "")
+                        
+                        if event_type == "discord.send":
+                            channel_id = event.get("channel_id")
+                            message = event.get("message", "")
+                            
+                            if channel_id and message and self.adapters.get("discord"):
+                                from .nerve.models import OutboundMessage
+                                adapter = self.adapters["discord"]
+                                await adapter.send_message(
+                                    channel_id,
+                                    OutboundMessage(content=message)
+                                )
+                                logger.info(f"ExfilGuard alert forwarded to Discord #{channel_id}")
+                        
+                        elif event_type == "security.alert":
+                            # Emit on internal bus for other subsystems
+                            severity = event.get("severity", "INFO")
+                            await self.bus.emit("security.exfilguard", event)
+                            
+                            # Also forward CRITICAL/HIGH to Discord #dispatch
+                            if severity in ("CRITICAL", "HIGH") and self.adapters.get("discord"):
+                                from .nerve.models import OutboundMessage
+                                payload = event.get("payload", {})
+                                msg = (
+                                    f"**[{severity}] ExfilGuard Security Alert**\n"
+                                    f"```\n"
+                                    f"Type: {payload.get('type', '?')}\n"
+                                    f"IP:   {payload.get('ip', '?')}\n"
+                                    f"rDNS: {payload.get('rdns', '?')}\n"
+                                    f"```"
+                                )
+                                adapter = self.adapters["discord"]
+                                # Forward to dispatch + security channels
+                                for ch_id in ("1478716096667189292", "1328051692167762034"):
+                                    await adapter.send_message(
+                                        ch_id,
+                                        OutboundMessage(content=msg)
+                                    )
+                        
+                        # Processed — delete
+                        event_file.unlink()
+                        
+                    except json.JSONDecodeError:
+                        logger.warning(f"ExfilGuard: invalid JSON in {event_file.name}")
+                        event_file.unlink()
+                    except Exception as e:
+                        logger.debug(f"ExfilGuard event relay error on {event_file.name}: {e}")
+                        # Don't delete — may be transient
+                        
+            except Exception as e:
+                logger.error(f"ExfilGuard event watcher error: {e}")
+            
+            await asyncio.sleep(5)  # Poll every 5 seconds
+    
     async def shutdown(self) -> None:
         """Gracefully shut down all subsystems."""
         if not self._running:
@@ -1333,6 +1652,9 @@ class Runtime:
         if self.watchdog:
             await self.watchdog.stop()
         
+        if self._nexus_daemon:
+            await self._nexus_daemon.stop()
+
         if self.health:
             await self.health.stop()
         

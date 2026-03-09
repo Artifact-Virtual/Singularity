@@ -421,4 +421,58 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
             },
         },
     },
+    # ── ATLAS (Board Manager) ────────────────────────────
+    {
+        "type": "function",
+        "function": {
+            "name": "atlas_status",
+            "description": "Get ATLAS board manager status — module counts, health summary, last cycle info.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "atlas_topology",
+            "description": "Get the enterprise topology map — all modules, machines, and connections.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "atlas_module",
+            "description": "Get detailed report for a specific module in the ATLAS topology.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "module_id": {
+                        "type": "string",
+                        "description": "Module ID (e.g. 'singularity', 'mach6-gateway', 'cthulu-daemon', 'hektor-daemon')",
+                    },
+                },
+                "required": ["module_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "atlas_report",
+            "description": "Generate and return the full ATLAS board report — enterprise-wide status across all modules.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+            },
+        },
+    },
 ]
