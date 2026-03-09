@@ -60,12 +60,17 @@ class BoardReporter:
         issues: list[Issue] | None = None,
         actions_taken: int = 0,
         actions_failed: int = 0,
+        hidden_modules: set[str] | None = None,
     ) -> str:
         """Generate the full board report for Discord."""
         now = datetime.datetime.now(datetime.timezone.utc)
         time_str = now.strftime("%Y-%m-%d %H:%M UTC")
         summary = self.graph.summary()
-        active = self.graph.get_active_modules()
+        active = [m for m in self.graph.get_active_modules() if m.id not in (hidden_modules or set())]
+
+        # Filter issues for hidden modules
+        if issues and hidden_modules:
+            issues = [i for i in issues if i.module_id not in hidden_modules]
 
         lines = [
             "```",
@@ -74,17 +79,18 @@ class BoardReporter:
             "══════════════════════════════════════",
         ]
 
-        # Module counts by status
-        by_status = summary.get("by_status", {})
-        healthy = by_status.get("healthy", 0)
-        degraded = by_status.get("degraded", 0)
-        down = by_status.get("down", 0)
-        total = summary.get("total_modules", 0)
+        # Module counts by status (from filtered active list)
+        healthy = sum(1 for m in active if m.status == ModuleStatus.HEALTHY)
+        degraded = sum(1 for m in active if m.status == ModuleStatus.DEGRADED)
+        down = sum(1 for m in active if m.status == ModuleStatus.DOWN)
+        total = len(active)
 
         lines.append(f"  Modules: {total} tracked ({healthy} healthy, {degraded} degraded, {down} down)")
 
-        # By machine
-        by_machine = summary.get("by_machine", {})
+        # By machine (from filtered list)
+        by_machine: dict[str, int] = {}
+        for m in active:
+            by_machine[m.machine] = by_machine.get(m.machine, 0) + 1
         machine_parts = [f"{m}: {c}" for m, c in sorted(by_machine.items())]
         lines.append(f"  Machines: {len(by_machine)} ({', '.join(machine_parts)})")
 
@@ -226,9 +232,9 @@ class BoardReporter:
 
         return "\n".join(lines)
 
-    def generate_topology_view(self) -> str:
+    def generate_topology_view(self, hidden_modules: set[str] | None = None) -> str:
         """Generate a text-based topology map."""
-        active = self.graph.get_active_modules()
+        active = [m for m in self.graph.get_active_modules() if m.id not in (hidden_modules or set())]
         by_machine: dict[str, list[Module]] = {}
         for mod in active:
             if mod.machine not in by_machine:
@@ -245,10 +251,12 @@ class BoardReporter:
                 lines.append(f"  {icon} {mod.name} [{mod.type.value}] {ports}")
             lines.append("")
 
-        # Show edges
-        if self.graph.edges:
+        # Show edges (filter hidden modules from connections too)
+        _hidden = hidden_modules or set()
+        visible_edges = [e for e in self.graph.edges if e.source not in _hidden and e.target not in _hidden]
+        if visible_edges:
             lines.append("**Connections:**")
-            for edge in self.graph.edges[:20]:
+            for edge in visible_edges[:20]:
                 lines.append(f"  {edge.source} → {edge.target} ({edge.type.value})")
 
         return "\n".join(lines)

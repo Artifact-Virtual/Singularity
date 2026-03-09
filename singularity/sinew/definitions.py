@@ -438,10 +438,15 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "atlas_topology",
-            "description": "Get the enterprise topology map — all modules, machines, and connections.",
+            "description": "Get the enterprise topology map — all modules, machines, and connections. Hidden modules are excluded by default.",
             "parameters": {
                 "type": "object",
-                "properties": {},
+                "properties": {
+                    "include_hidden": {
+                        "type": "boolean",
+                        "description": "If true, include hidden/confidential modules in the output. Default: false.",
+                    },
+                },
                 "required": [],
             },
         },
@@ -467,11 +472,38 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "atlas_report",
-            "description": "Generate and return the full ATLAS board report — enterprise-wide status across all modules.",
+            "description": "Generate and return the full ATLAS board report — enterprise-wide status across all modules. Hidden modules are excluded by default.",
             "parameters": {
                 "type": "object",
-                "properties": {},
+                "properties": {
+                    "include_hidden": {
+                        "type": "boolean",
+                        "description": "If true, include hidden/confidential modules in the report. Default: false.",
+                    },
+                },
                 "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "atlas_visibility",
+            "description": "Manage ATLAS module visibility. Hide confidential modules from reports and topology, or show them again. Actions: list (show all with visibility state), hide (hide a module), show (unhide a module).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "action": {
+                        "type": "string",
+                        "description": "Action to perform: 'list', 'hide', or 'show'.",
+                        "enum": ["list", "hide", "show"],
+                    },
+                    "module_id": {
+                        "type": "string",
+                        "description": "Module ID to hide or show (required for hide/show actions).",
+                    },
+                },
+                "required": ["action"],
             },
         },
     },

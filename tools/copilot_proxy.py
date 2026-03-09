@@ -207,7 +207,7 @@ class CopilotProxy:
             "Openai-Intent": "conversation-panel",
         }
 
-        async with httpx.AsyncClient(timeout=120.0) as client:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(300.0, connect=30.0)) as client:
             if stream:
                 # Streaming response
                 response = web.StreamResponse(

@@ -55,6 +55,12 @@ class Atlas:
         self.actions = ActionExecutor(self._state_dir / "actions.jsonl")
         self.reporter = BoardReporter(self.graph)
 
+        # Visibility index — modules can be hidden from reports/topology
+        # Hidden modules still get discovered and monitored, just excluded from output
+        self._visibility_path = self._state_dir / "visibility.json"
+        self._hidden_modules: set[str] = set()
+        self._load_visibility()
+
         # State
         self._cycle_count: int = 0
         self._last_cycle: str = ""
@@ -197,14 +203,16 @@ class Atlas:
         except Exception as e:
             logger.debug(f"Suppressed event emission error: {e}")
 
-    def get_board_report(self) -> str:
+    def get_board_report(self, include_hidden: bool = False) -> str:
         """Generate the board report from current state."""
         fixed = sum(1 for i in self._last_issues if i.auto_fixed)
         failed = sum(1 for i in self._last_issues if i.auto_fixable and not i.auto_fixed)
+        hidden = self._hidden_modules if not include_hidden else set()
         return self.reporter.generate_board_report(
             issues=self._last_issues,
             actions_taken=fixed,
             actions_failed=failed,
+            hidden_modules=hidden,
         )
 
     def get_status(self) -> dict:
@@ -220,12 +228,81 @@ class Atlas:
             "issues": len(self._last_issues),
             "new_modules": self._new_modules,
             "gone_modules": self._gone_modules,
+            "hidden_modules": sorted(self._hidden_modules),
         }
 
     def get_module_detail(self, module_id: str) -> str:
         """Get detailed report for a specific module."""
         return self.reporter.generate_module_detail(module_id)
 
-    def get_topology(self) -> str:
+    def get_topology(self, include_hidden: bool = False) -> str:
         """Get text topology map."""
-        return self.reporter.generate_topology_view()
+        hidden = self._hidden_modules if not include_hidden else set()
+        return self.reporter.generate_topology_view(hidden_modules=hidden)
+
+    # ── Visibility Index ─────────────────────────────────────────
+
+    def set_visibility(self, module_id: str, visible: bool) -> str:
+        """
+        Toggle module visibility. Hidden modules are still discovered and monitored,
+        but excluded from board reports, topology views, and status output.
+        Use for confidential products (e.g., GDI, trading systems).
+        """
+        if visible:
+            self._hidden_modules.discard(module_id)
+            action = "unhidden"
+        else:
+            self._hidden_modules.add(module_id)
+            action = "hidden"
+
+        self._save_visibility()
+        logger.info(f"ATLAS: Module '{module_id}' {action}")
+        return f"Module '{module_id}' is now {action}. {'It will be excluded from reports and topology.' if not visible else 'It will appear in all outputs.'}"
+
+    def get_visibility_index(self) -> dict:
+        """
+        Return the full visibility index.
+        Lists all known modules with their visibility state.
+        """
+        index = {}
+        for mod_id in sorted(self.graph.modules.keys()):
+            mod = self.graph.modules[mod_id]
+            if mod.status == ModuleStatus.GONE:
+                continue
+            index[mod_id] = {
+                "name": mod.name,
+                "type": mod.type.value,
+                "visible": mod_id not in self._hidden_modules,
+            }
+        return {
+            "modules": index,
+            "hidden_count": len(self._hidden_modules),
+            "visible_count": len(index) - len(self._hidden_modules & set(index.keys())),
+        }
+
+    def is_visible(self, module_id: str) -> bool:
+        """Check if a module is visible in outputs."""
+        return module_id not in self._hidden_modules
+
+    def _load_visibility(self) -> None:
+        """Load hidden modules set from disk."""
+        try:
+            if self._visibility_path.exists():
+                data = json.loads(self._visibility_path.read_text())
+                self._hidden_modules = set(data.get("hidden", []))
+                logger.info(f"ATLAS: Loaded visibility index — {len(self._hidden_modules)} hidden modules")
+        except Exception as e:
+            logger.debug(f"Suppressed visibility load error: {e}")
+
+    def _save_visibility(self) -> None:
+        """Persist hidden modules set to disk."""
+        try:
+            data = {
+                "hidden": sorted(self._hidden_modules),
+                "updated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            }
+            tmp = self._visibility_path.with_suffix(".tmp")
+            tmp.write_text(json.dumps(data, indent=2))
+            tmp.rename(self._visibility_path)
+        except Exception as e:
+            logger.debug(f"Suppressed visibility save error: {e}")

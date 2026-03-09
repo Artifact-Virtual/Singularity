@@ -758,8 +758,8 @@ class Runtime:
                 except Exception as e:
                     logger.error(f"ATLAS cycle error: {e}")
 
-            # Wire board report trigger → Discord #dispatch
-            DISPATCH_CHANNEL = "1478716096667189292"
+            # Wire board report trigger → Discord #service-access
+            ATLAS_CHANNEL = "1328051692167762034"
 
             @self.bus.on("atlas.board.trigger")
             async def on_atlas_board(event):
@@ -771,7 +771,7 @@ class Runtime:
                     if self.tools and self.tools._discord_adapter:
                         from .nerve.types import OutboundMessage
                         await self.tools._discord_adapter.send(
-                            DISPATCH_CHANNEL, OutboundMessage(content=report)
+                            ATLAS_CHANNEL, OutboundMessage(content=report)
                         )
                         logger.debug("ATLAS board report sent to #dispatch")
                 except Exception as e:
@@ -802,7 +802,7 @@ class Runtime:
                     if len(msg) > 1900:
                         msg = msg[:1900] + "\n... (truncated)"
                     await self.tools._discord_adapter.send(
-                        DISPATCH_CHANNEL, OutboundMessage(content=msg)
+                        ATLAS_CHANNEL, OutboundMessage(content=msg)
                     )
                 except Exception as e:
                     logger.debug(f"Suppressed ATLAS alert forwarding: {e}")
@@ -823,7 +823,7 @@ class Runtime:
 
                     from .nerve.types import OutboundMessage
                     await self.tools._discord_adapter.send(
-                        DISPATCH_CHANNEL,
+                        ATLAS_CHANNEL,
                         OutboundMessage(content=f"**ATLAS: New module discovered** — `{mod_id}` ({mod_type}) on {machine}")
                     )
                 except Exception as e:
@@ -845,7 +845,7 @@ class Runtime:
                     logger.error(f"ATLAS initial scan failed: {e}")
 
             asyncio.ensure_future(_initial_atlas_scan())
-            logger.info("  ATLAS board manager started (5min cycle, 6h reports → #dispatch)")
+            logger.info("  ATLAS board manager started (5min cycle, 6h reports → #service-access)")
 
         except Exception as e:
             logger.warning(f"  ATLAS failed to start: {e}")

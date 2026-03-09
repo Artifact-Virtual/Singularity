@@ -1025,6 +1025,10 @@ class ToolExecutor:
 
             lines.append(f"Open issues: {status['issues']}")
 
+            hidden = status.get("hidden_modules", [])
+            if hidden:
+                lines.append(f"Hidden modules: {', '.join(hidden)}")
+
             if status.get("new_modules"):
                 lines.append(f"New (last cycle): {', '.join(status['new_modules'])}")
             if status.get("gone_modules"):
@@ -1039,10 +1043,11 @@ class ToolExecutor:
         if not self._atlas:
             return "ATLAS board manager is not initialized."
         try:
+            include_hidden = args.get("include_hidden", False)
             # Run a scan if no data yet
             if not self._atlas.graph.modules:
                 await self._atlas.run_cycle()
-            return self._atlas.get_topology()
+            return self._atlas.get_topology(include_hidden=include_hidden)
         except Exception as e:
             return f"ATLAS topology error: {e}"
 
@@ -1066,9 +1071,39 @@ class ToolExecutor:
         if not self._atlas:
             return "ATLAS board manager is not initialized."
         try:
+            include_hidden = args.get("include_hidden", False)
             # Run a fresh cycle for current data
             await self._atlas.run_cycle()
-            return self._atlas.get_board_report()
+            return self._atlas.get_board_report(include_hidden=include_hidden)
         except Exception as e:
             return f"ATLAS report error: {e}"
+
+    async def _tool_atlas_visibility(self, args: dict) -> str:
+        """Manage ATLAS module visibility — hide/show/list."""
+        if not self._atlas:
+            return "ATLAS board manager is not initialized."
+        try:
+            action = args.get("action", "list")
+
+            if action == "list":
+                index = self._atlas.get_visibility_index()
+                lines = ["**ATLAS Visibility Index**", ""]
+                lines.append(f"Visible: {index['visible_count']} | Hidden: {index['hidden_count']}")
+                lines.append("")
+                for mod_id, info in index["modules"].items():
+                    icon = "👁️" if info["visible"] else "🔒"
+                    lines.append(f"  {icon} {mod_id} ({info['type']})")
+                return "\n".join(lines)
+
+            elif action in ("hide", "show"):
+                module_id = args.get("module_id", "")
+                if not module_id:
+                    return "Error: module_id is required for hide/show."
+                visible = action == "show"
+                return self._atlas.set_visibility(module_id, visible)
+
+            else:
+                return f"Unknown action '{action}'. Use: list, hide, show."
+        except Exception as e:
+            return f"ATLAS visibility error: {e}"
 
