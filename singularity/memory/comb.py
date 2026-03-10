@@ -94,6 +94,9 @@ class CombMemory:
             
             logger.info("Staged %d chars into COMB", len(content))
             
+            # Trigger HEKTOR vectorization so staged content becomes searchable
+            self._trigger_hektor_ingest(content)
+            
             if self.bus:
                 await self.bus.emit("memory.comb.staged", {
                     "chars": len(content),
@@ -105,6 +108,52 @@ class CombMemory:
         except Exception as e:
             logger.error("COMB stage failed: %s", e)
             return False
+    
+    def _trigger_hektor_ingest(self, staged_text: str):
+        """Queue staged content for HEKTOR vectorization.
+        
+        Writes to comb-pending.jsonl and signals the HEKTOR daemon
+        to process it. The content becomes BM25 + vector searchable.
+        """
+        import socket as sock_mod
+        
+        # Find the workspace root (parent of store_path's parent)
+        workspace = self.store_path.parent
+        # Walk up until we find a workspace-like directory
+        for candidate in [workspace, workspace.parent, workspace.parent.parent]:
+            if (candidate / ".ava-memory").exists():
+                workspace = candidate
+                break
+        
+        pending_path = workspace / ".ava-memory" / "comb-pending.jsonl"
+        
+        try:
+            entry = {
+                "text": staged_text,
+                "date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "source": "singularity-comb-stage",
+            }
+            
+            with open(pending_path, "a") as f:
+                f.write(json.dumps(entry) + "\n")
+            
+            logger.info("Queued for HEKTOR vectorization (%d chars)", len(staged_text))
+            
+            # Signal daemon to process queue
+            sock_path = workspace / ".ava-memory" / "ava_daemon.sock"
+            if sock_path.exists():
+                try:
+                    s = sock_mod.socket(sock_mod.AF_UNIX, sock_mod.SOCK_STREAM)
+                    s.settimeout(2)
+                    s.connect(str(sock_path))
+                    s.sendall(b'{"cmd": "reload"}\n')
+                    s.close()
+                except Exception:
+                    pass  # Daemon not running — entries stay queued
+                    
+        except Exception as e:
+            logger.warning("HEKTOR queue failed (non-fatal): %s", e)
     
     async def recall(self) -> str:
         """Recall staged content from previous session.

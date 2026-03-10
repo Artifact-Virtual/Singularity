@@ -117,6 +117,7 @@ class Runtime:
         self.nexus = None        # NEXUS self-optimization engine
         self._nexus_daemon = None  # NEXUS evolution daemon (subagent)
         self.atlas = None        # ATLAS board manager
+        self._release_manager = None  # POA release manager
         
         self._running = False
         self._boot_time: float | None = None
@@ -1018,8 +1019,104 @@ class Runtime:
         if primary_manager and self.tools:
             self.tools.set_poa_manager(primary_manager)
         
+        # ── Release Manager ──────────────────────────────────────────
+        await self._boot_release_manager(poa_dirs)
+        
         logger.info(f"  POA ready ({total_poas} products, {total_jobs} audit jobs scheduled)")
     
+    async def _boot_release_manager(self, poa_dirs: list[Path]) -> None:
+        """Initialize the release manager from POA configs with release: blocks."""
+        from .poa.release import ReleaseManager, RepoConfig
+        from .pulse.scheduler import JobConfig, JobType
+        import yaml
+        
+        try:
+            proposals_dir = Path(self.config.tools.workspace) / ".singularity" / "poa" / "releases"
+            self._release_manager = ReleaseManager(str(proposals_dir))
+            
+            registered = 0
+            for workspace in poa_dirs:
+                poas_dir = workspace / "poas" if (workspace / "poas").exists() else workspace
+                if not poas_dir.exists():
+                    continue
+                
+                for config_file in poas_dir.glob("*/config.yaml"):
+                    try:
+                        cfg = yaml.safe_load(config_file.read_text()) or {}
+                        release = cfg.get("release")
+                        if not release or not release.get("repo_path"):
+                            continue
+                        
+                        repo_path = release["repo_path"]
+                        if not Path(repo_path).exists():
+                            continue
+                        
+                        github_repo = release.get("github_repo", "")
+                        remotes = release.get("remotes", ["origin"])
+                        
+                        repo_config = RepoConfig(
+                            product_id=cfg.get("product_id", config_file.parent.name),
+                            repo_path=repo_path,
+                            github_repo=github_repo,
+                            current_version=release.get("current_version", "v0.0.0"),
+                            remotes=[r for r in remotes if r == "origin"],
+                            extra_remotes=[r for r in remotes if r != "origin"],
+                            release_branch=release.get("release_branch", "main"),
+                        )
+                        self._release_manager.register_repo(repo_config)
+                        registered += 1
+                    except Exception as e:
+                        logger.debug(f"Suppressed release config parse: {e}")
+            
+            if registered > 0:
+                # Add PULSE job for periodic release scanning (every 4h)
+                scan_job = JobConfig(
+                    id="release-scan",
+                    name="Release Manager: Scan repos",
+                    job_type=JobType.INTERVAL,
+                    interval_seconds=4 * 3600,
+                    emit_topic="release.scan.trigger",
+                    emit_data={},
+                )
+                self.scheduler.add(scan_job)
+                
+                # Wire scan trigger
+                @self.bus.on("release.scan.trigger")
+                async def on_release_scan(event):
+                    try:
+                        proposals = self._release_manager.scan_all()
+                        if proposals:
+                            lines = ["📦 **Release proposals ready for review:**\n"]
+                            for p in proposals:
+                                lines.append(
+                                    f"  • **{p.product_id}** {p.current_version} → "
+                                    f"**{p.proposed_version}** ({p.bump_type}, "
+                                    f"{len(p.commits)} commits)"
+                                )
+                            lines.append("\nUse `release_status` to review, `release_confirm <id>` to approve.")
+                            
+                            if self.tools and self.tools._discord_adapter:
+                                from .nerve.types import OutboundMessage
+                                channel = "1328051692167762034"  # #service-access
+                                await self.tools._discord_adapter.send(
+                                    channel, OutboundMessage(content="\n".join(lines))
+                                )
+                    except Exception as e:
+                        logger.debug(f"Suppressed release scan: {e}")
+                
+                # Wire release manager to executor
+                if self.tools:
+                    self.tools.set_release_manager(self._release_manager)
+                
+                logger.info(f"  Release Manager: {registered} repos tracked, 4h scan cycle")
+            else:
+                self._release_manager = None
+                logger.info("  Release Manager: no repos with release configs found")
+                
+        except Exception as e:
+            self._release_manager = None
+            logger.debug(f"Suppressed release manager boot: {e}")
+
     async def _run_initial_poa_audits(self, poa_dirs: list[Path]) -> None:
         """Run first round of POA audits immediately after boot."""
         from .poa.manager import POAManager

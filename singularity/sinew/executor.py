@@ -65,6 +65,7 @@ class ToolExecutor:
         self._comb: Any = None  # Set by runtime after memory boot
         self._poa_manager: Any = None  # Set by runtime after POA boot
         self._atlas: Any = None  # Set by runtime after ATLAS boot
+        self._release_manager: Any = None  # Set by runtime after release boot
         self._hektor: Any = None  # Lazy-initialized HektorMemory instance
         self._current_sender_id: str | None = None  # For @mention enforcement
     
@@ -91,6 +92,10 @@ class ToolExecutor:
     def set_atlas(self, atlas: Any) -> None:
         """Wire the ATLAS board manager for atlas_* tools."""
         self._atlas = atlas
+    
+    def set_release_manager(self, manager: Any) -> None:
+        """Wire the release manager for release_* tools."""
+        self._release_manager = manager
     
     def set_current_sender(self, sender_id: str | None) -> None:
         """Set the current message sender for @mention enforcement."""
@@ -1106,4 +1111,120 @@ class ToolExecutor:
                 return f"Unknown action '{action}'. Use: list, hide, show."
         except Exception as e:
             return f"ATLAS visibility error: {e}"
+
+    # ── Release Manager Tools ─────────────────────────────────────────
+
+    async def _tool_release_scan(self, args: dict) -> str:
+        """Scan all tracked repos for unreleased commits."""
+        if not self._release_manager:
+            return "Release manager not initialized."
+        try:
+            proposals = self._release_manager.scan_all()
+            if not proposals:
+                return "No unreleased work found across tracked repos."
+            
+            lines = [f"📦 **{len(proposals)} release proposal(s):**\n"]
+            for p in proposals:
+                lines.append(
+                    f"**{p.product_id}** {p.current_version} → **{p.proposed_version}** "
+                    f"({p.bump_type} bump, {len(p.commits)} commits)"
+                )
+                # Show top 5 commits
+                for c in p.commits[:5]:
+                    lines.append(f"  • {c['subject']} (`{c['hash']}`)")
+                if len(p.commits) > 5:
+                    lines.append(f"  ... and {len(p.commits) - 5} more")
+                lines.append("")
+            
+            lines.append("Use `release_confirm <product_id>` to approve, `release_reject <product_id>` to dismiss.")
+            return "\n".join(lines)
+        except Exception as e:
+            return f"Release scan error: {e}"
+
+    async def _tool_release_status(self, args: dict) -> str:
+        """Get release manager status."""
+        if not self._release_manager:
+            return "Release manager not initialized."
+        try:
+            status = self._release_manager.get_status()
+            lines = [
+                f"📦 **Release Manager**",
+                f"Repos tracked: {status['repos_tracked']}",
+                f"Pending proposals: {status['pending_proposals']}",
+                f"Confirmed (ready to ship): {status['confirmed']}",
+                f"Total shipped: {status['shipped_total']}",
+            ]
+            if status['proposals']:
+                lines.append("\n**Proposals:**")
+                for p in status['proposals']:
+                    icon = {"pending": "⏳", "confirmed": "✅", "shipped": "📦", "rejected": "❌"}.get(p['status'], "?")
+                    lines.append(
+                        f"  {icon} **{p['product_id']}** {p['current']} → {p['proposed']} "
+                        f"({p['bump']}, {p['commits']} commits) — {p['status']}"
+                    )
+            return "\n".join(lines)
+        except Exception as e:
+            return f"Release status error: {e}"
+
+    async def _tool_release_confirm(self, args: dict) -> str:
+        """Confirm a pending release proposal."""
+        if not self._release_manager:
+            return "Release manager not initialized."
+        product_id = args.get("product_id", "")
+        if not product_id:
+            return "Error: product_id is required."
+        try:
+            proposal = self._release_manager.confirm(product_id)
+            if not proposal:
+                return f"No pending proposal found for '{product_id}'."
+            return (
+                f"✅ **Confirmed:** {product_id} {proposal.current_version} → "
+                f"**{proposal.proposed_version}**\n"
+                f"Ready to ship. Use `release_ship {product_id}` to publish."
+            )
+        except Exception as e:
+            return f"Release confirm error: {e}"
+
+    async def _tool_release_ship(self, args: dict) -> str:
+        """Ship a confirmed release."""
+        if not self._release_manager:
+            return "Release manager not initialized."
+        product_id = args.get("product_id", "")
+        if not product_id:
+            return "Error: product_id is required."
+        try:
+            import asyncio
+            result = await self._release_manager.ship(product_id)
+            if result.get("success"):
+                lines = [
+                    f"🚀 **SHIPPED: {product_id} {result['version']}**",
+                    f"Tag created: {'✅' if result.get('tag_created') else '❌'}",
+                ]
+                pushed = result.get("pushed", {})
+                for remote, ok in pushed.items():
+                    lines.append(f"Pushed to {remote}: {'✅' if ok else '❌'}")
+                if result.get("github_release"):
+                    lines.append(f"GitHub release: ✅ {result.get('release_url', '')}")
+                elif result.get("gh_error"):
+                    lines.append(f"GitHub release: ❌ {result['gh_error']}")
+                return "\n".join(lines)
+            else:
+                return f"❌ Ship failed: {result.get('error', 'unknown error')}"
+        except Exception as e:
+            return f"Release ship error: {e}"
+
+    async def _tool_release_reject(self, args: dict) -> str:
+        """Reject a pending release proposal."""
+        if not self._release_manager:
+            return "Release manager not initialized."
+        product_id = args.get("product_id", "")
+        if not product_id:
+            return "Error: product_id is required."
+        try:
+            proposal = self._release_manager.reject(product_id)
+            if not proposal:
+                return f"No pending proposal found for '{product_id}'."
+            return f"❌ **Rejected:** {product_id} {proposal.proposed_version} — proposal dismissed."
+        except Exception as e:
+            return f"Release reject error: {e}"
 

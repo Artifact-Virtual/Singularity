@@ -507,4 +507,78 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
             },
         },
     },
+    # ── Release Manager ──────────────────────────────────────────────
+    {
+        "type": "function",
+        "function": {
+            "name": "release_scan",
+            "description": "Scan all tracked repos for unreleased commits. Returns proposals with semver bumps and changelogs.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "release_status",
+            "description": "Get release manager status — tracked repos, pending proposals, confirmed releases.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "release_confirm",
+            "description": "Confirm a pending release proposal. After confirmation, use release_ship to publish.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "product_id": {
+                        "type": "string",
+                        "description": "Product ID to confirm (e.g. 'singularity', 'mach6-gateway', 'gdi').",
+                    },
+                },
+                "required": ["product_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "release_ship",
+            "description": "Ship a confirmed release — creates annotated tag, pushes to all remotes, publishes GitHub release with changelog.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "product_id": {
+                        "type": "string",
+                        "description": "Product ID to ship (must be confirmed first).",
+                    },
+                },
+                "required": ["product_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "release_reject",
+            "description": "Reject a pending release proposal.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "product_id": {
+                        "type": "string",
+                        "description": "Product ID to reject.",
+                    },
+                },
+                "required": ["product_id"],
+            },
+        },
+    },
 ]
