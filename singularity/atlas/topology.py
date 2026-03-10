@@ -158,6 +158,16 @@ class Module:
     issues: list[Issue] = field(default_factory=list)
     metadata: dict = field(default_factory=dict)  # arbitrary extra info
     _miss_count: int = field(default=0, repr=False)
+    # Uptime tracking
+    total_cycles: int = field(default=0, repr=False)
+    healthy_cycles: int = field(default=0, repr=False)
+
+    @property
+    def uptime_pct(self) -> float:
+        """Module uptime percentage across observed cycles."""
+        if self.total_cycles == 0:
+            return 0.0
+        return round((self.healthy_cycles / self.total_cycles) * 100, 1)
 
     def to_dict(self) -> dict:
         d = {
@@ -234,6 +244,10 @@ class TopologyGraph:
             existing.status = module.status  # Reset status (revives gone/stale modules)
             existing.last_seen = now
             existing._miss_count = 0
+            # Uptime tracking
+            existing.total_cycles += 1
+            if module.status == ModuleStatus.HEALTHY:
+                existing.healthy_cycles += 1
             if module.health_result.checked_at:
                 existing.health_result = module.health_result
             if module.public_urls:
@@ -245,6 +259,10 @@ class TopologyGraph:
             if module.metadata:
                 existing.metadata.update(module.metadata)
         else:
+            # New module — first cycle
+            module.total_cycles = 1
+            if module.status == ModuleStatus.HEALTHY:
+                module.healthy_cycles = 1
             self.modules[module.id] = module
 
         return module.id, is_new
@@ -255,6 +273,7 @@ class TopologyGraph:
         if not mod:
             return None
         mod._miss_count += 1
+        mod.total_cycles += 1  # Count missed cycle too (not healthy)
         if mod._miss_count >= 10:
             mod.status = ModuleStatus.GONE
         elif mod._miss_count >= 3:
@@ -313,6 +332,11 @@ class TopologyGraph:
             state = {
                 "modules": {k: v.to_dict() for k, v in self.modules.items()},
                 "edges": [e.to_dict() for e in self.edges],
+                "cycle_count": self.cycle_count,
+                "uptime": {
+                    mid: {"total": m.total_cycles, "healthy": m.healthy_cycles}
+                    for mid, m in self.modules.items()
+                },
                 "saved_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             }
             tmp = self._state_path.with_suffix(".tmp")
@@ -327,6 +351,9 @@ class TopologyGraph:
             return False
         try:
             data = json.loads(self._state_path.read_text())
+            # Restore cycle count
+            self.cycle_count = data.get("cycle_count", 0)
+            uptime_data = data.get("uptime", {})
             # Reconstruct modules
             for mid, mdata in data.get("modules", {}).items():
                 mod = Module(
@@ -342,6 +369,10 @@ class TopologyGraph:
                     last_seen=mdata.get("last_seen", ""),
                     metadata=mdata.get("metadata", {}),
                 )
+                # Restore uptime tracking
+                if mid in uptime_data:
+                    mod.total_cycles = uptime_data[mid].get("total", 0)
+                    mod.healthy_cycles = uptime_data[mid].get("healthy", 0)
                 self.modules[mid] = mod
             # Reconstruct edges
             for edata in data.get("edges", []):
@@ -354,7 +385,7 @@ class TopologyGraph:
                     verified=edata.get("verified", False),
                 )
                 self.edges.append(edge)
-            logger.info(f"ATLAS: Loaded topology — {len(self.modules)} modules, {len(self.edges)} edges")
+            logger.info(f"ATLAS: Loaded topology — {len(self.modules)} modules, {len(self.edges)} edges, {self.cycle_count} cycles")
             return True
         except Exception as e:
             logger.debug(f"Suppressed topology load error: {e}")

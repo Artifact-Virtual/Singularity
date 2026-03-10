@@ -63,6 +63,7 @@ class Atlas:
 
         # State
         self._cycle_count: int = 0
+        self._host_resources: dict[str, dict] = {}  # machine → resource metrics
         self._last_cycle: str = ""
         self._last_issues: list[Any] = []
         self._new_modules: list[str] = []
@@ -71,6 +72,7 @@ class Atlas:
 
         # Load previous state
         self.graph.load()
+        self._cycle_count = self.graph.cycle_count  # Restore from persisted state
 
     async def run_cycle(self) -> dict:
         """
@@ -93,6 +95,12 @@ class Atlas:
         try:
             # 1. Discovery
             discovered_modules, discovered_edges = await self.discovery.run_full_scan()
+
+            # 1b. Host resource collection
+            try:
+                self._host_resources = await self.discovery.collect_host_resources()
+            except Exception as e:
+                logger.debug(f"Host resource collection failed: {e}")
 
             # 2. Update topology
             discovered_ids = set()
@@ -131,6 +139,7 @@ class Atlas:
 
             # 7. Build result
             self._cycle_count += 1
+            self.graph.cycle_count = self._cycle_count
             self._last_cycle = start.isoformat()
             elapsed = (datetime.datetime.now(datetime.timezone.utc) - start).total_seconds()
 
@@ -213,6 +222,7 @@ class Atlas:
             actions_taken=fixed,
             actions_failed=failed,
             hidden_modules=hidden,
+            host_resources=self._host_resources,
         )
 
     def get_status(self) -> dict:

@@ -61,6 +61,7 @@ class BoardReporter:
         actions_taken: int = 0,
         actions_failed: int = 0,
         hidden_modules: set[str] | None = None,
+        host_resources: dict[str, dict] | None = None,
     ) -> str:
         """Generate the full board report for Discord."""
         now = datetime.datetime.now(datetime.timezone.utc)
@@ -94,6 +95,13 @@ class BoardReporter:
         machine_parts = [f"{m}: {c}" for m, c in sorted(by_machine.items())]
         lines.append(f"  Machines: {len(by_machine)} ({', '.join(machine_parts)})")
 
+        # Fleet uptime
+        if any(m.total_cycles > 0 for m in active):
+            uptimes = [m.uptime_pct for m in active if m.total_cycles > 0]
+            if uptimes:
+                fleet_uptime = sum(uptimes) / len(uptimes)
+                lines.append(f"  Fleet uptime: {fleet_uptime:.1f}%")
+
         lines.append("")
 
         # Module listing by type
@@ -118,14 +126,17 @@ class BoardReporter:
             lines.append(f"  {label}:")
             for mod in sorted(mods, key=lambda m: m.name):
                 icon = STATUS_ICONS.get(mod.status, "❔")
-                extra = ""
+                extra_parts: list[str] = []
                 rss = mod.resources.get("rss_mb", mod.process.rss_mb)
                 if rss and rss > 100:
-                    extra += f" [{rss:.0f}MB]"
-                if mod.machine != "dragonfly":
-                    extra += f" ({mod.machine})"
+                    extra_parts.append(f"{rss:.0f}MB")
                 if mod.health_result.healthy:
-                    extra += f" {mod.health_result.latency_ms:.0f}ms"
+                    extra_parts.append(f"{mod.health_result.latency_ms:.0f}ms")
+                if mod.total_cycles > 5:
+                    extra_parts.append(f"↑{mod.uptime_pct:.0f}%")
+                if mod.machine != "dragonfly":
+                    extra_parts.append(mod.machine)
+                extra = f" [{', '.join(extra_parts)}]" if extra_parts else ""
                 lines.append(f"    {icon} {mod.name}{extra}")
             lines.append("")
 

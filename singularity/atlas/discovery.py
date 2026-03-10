@@ -825,3 +825,72 @@ class DiscoveryEngine:
         if "svc_up" in signals or "health_ok" in signals or "proc_alive" in signals:
             return ModuleStatus.HEALTHY
         return ModuleStatus.UNKNOWN
+
+    async def collect_host_resources(self) -> dict[str, dict]:
+        """Collect host-level resource metrics for all machines."""
+        hosts: dict[str, dict] = {}
+
+        # --- Dragonfly (local) ---
+        try:
+            mem = await self._run("free -m | awk '/Mem:/{print $2,$3,$7} /Swap:/{print $2,$3}'")
+            lines = mem.strip().split("\n")
+            if len(lines) >= 2:
+                mem_parts = lines[0].split()
+                swap_parts = lines[1].split()
+                total_mb = int(mem_parts[0]) if mem_parts else 0
+                used_mb = int(mem_parts[1]) if len(mem_parts) > 1 else 0
+                avail_mb = int(mem_parts[2]) if len(mem_parts) > 2 else 0
+                swap_total = int(swap_parts[0]) if swap_parts else 0
+                swap_used = int(swap_parts[1]) if len(swap_parts) > 1 else 0
+            else:
+                total_mb = used_mb = avail_mb = swap_total = swap_used = 0
+
+            load = await self._run("cat /proc/loadavg")
+            load_1 = float(load.split()[0]) if load else 0.0
+
+            disk = await self._run("df -BG / | awk 'NR==2{print $2,$3,$4,$5}'")
+            disk_parts = disk.strip().split() if disk else []
+            disk_total = disk_parts[0].rstrip("G") if disk_parts else "0"
+            disk_used = disk_parts[1].rstrip("G") if len(disk_parts) > 1 else "0"
+            disk_pct = disk_parts[3].rstrip("%") if len(disk_parts) > 3 else "0"
+
+            hosts["dragonfly"] = {
+                "ram_total_mb": total_mb,
+                "ram_used_mb": used_mb,
+                "ram_avail_mb": avail_mb,
+                "ram_pct": round((used_mb / total_mb * 100), 1) if total_mb else 0,
+                "swap_total_mb": swap_total,
+                "swap_used_mb": swap_used,
+                "swap_pct": round((swap_used / swap_total * 100), 1) if swap_total else 0,
+                "load_1m": load_1,
+                "disk_total_gb": int(disk_total) if disk_total.isdigit() else 0,
+                "disk_used_gb": int(disk_used) if disk_used.isdigit() else 0,
+                "disk_pct": int(disk_pct) if disk_pct.isdigit() else 0,
+            }
+        except Exception as e:
+            logger.debug(f"Suppressed dragonfly resource collection: {e}")
+
+        # --- Victus (SSH) ---
+        try:
+            out = await self._run(f"ssh -o ConnectTimeout=3 {self._victus_host} 'wmic OS get FreePhysicalMemory,TotalVisibleMemorySize /value' 2>/dev/null", timeout=5)
+            if "TotalVisibleMemorySize" in out:
+                vals = {}
+                for line in out.strip().split("\n"):
+                    if "=" in line:
+                        k, v = line.strip().split("=", 1)
+                        vals[k.strip()] = v.strip()
+                total_kb = int(vals.get("TotalVisibleMemorySize", "0"))
+                free_kb = int(vals.get("FreePhysicalMemory", "0"))
+                total_mb = total_kb // 1024
+                free_mb = free_kb // 1024
+                used_mb = total_mb - free_mb
+                hosts["victus"] = {
+                    "ram_total_mb": total_mb,
+                    "ram_used_mb": used_mb,
+                    "ram_avail_mb": free_mb,
+                    "ram_pct": round((used_mb / total_mb * 100), 1) if total_mb else 0,
+                }
+        except Exception as e:
+            logger.debug(f"Suppressed victus resource collection: {e}")
+
+        return hosts
