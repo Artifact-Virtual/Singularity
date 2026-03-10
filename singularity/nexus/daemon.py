@@ -116,8 +116,8 @@ class EvolutionDaemon:
 
             # Subscribe to manual trigger events
             if self.bus:
-                self.bus.on("nexus.daemon.trigger", self._on_trigger)
-                self.bus.on("nexus.evolution.requested", self._on_trigger)
+                self.bus.subscribe("nexus.daemon.trigger", self._on_trigger)
+                self.bus.subscribe("nexus.evolution.requested", self._on_trigger)
 
             # Register PULSE job for periodic evolution
             if self.scheduler:

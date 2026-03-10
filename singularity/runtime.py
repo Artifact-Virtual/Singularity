@@ -714,7 +714,7 @@ class Runtime:
                 except Exception as e:
                     logger.error(f"Failed to forward NEXUS report to Discord: {e}")
 
-            self.bus.on("nexus.daemon.cycle.done", on_nexus_cycle_done)
+            self.bus.subscribe("nexus.daemon.cycle.done", on_nexus_cycle_done)
 
             logger.info("  NEXUS evolution daemon started (6h cycle, reports → #governance)")
         except Exception as e:
