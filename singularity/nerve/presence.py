@@ -84,8 +84,8 @@ class PresenceManager:
                     if self._typing_fn:
                         try:
                             await self._typing_fn(chat_id)
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            logger.debug(f"Suppressed: {e}")
                     elapsed = asyncio.get_event_loop().time() - start
                     if elapsed > MAX_TYPING_SECONDS:
                         logger.warning("[presence] Typing timeout for %s", chat_id)

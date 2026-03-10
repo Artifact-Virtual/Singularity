@@ -482,8 +482,8 @@ class SetupFlow:
                             "url": f"http://localhost:{port}",
                             "name": f"{p.name}:{port}",
                         })
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Suppressed: {e}")
         
         # Try to detect systemd service name
         service_files = list(project_path.glob("*.service"))

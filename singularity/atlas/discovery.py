@@ -788,8 +788,8 @@ class DiscoveryEngine:
         except asyncio.TimeoutError:
             try:
                 proc.kill()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Suppressed: {e}")
             return ""
         except Exception as e:
             logger.debug(f"Suppressed command error ({cmd[:50]}): {e}")

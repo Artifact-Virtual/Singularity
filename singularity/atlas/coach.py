@@ -294,8 +294,8 @@ class CoachEngine:
                             fix_action=f"chmod 600 {env_file}",
                             created_at=now,
                         ))
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Suppressed: {e}")
 
         return issues
 
@@ -389,10 +389,10 @@ class CoachEngine:
                                 detail=str(log_file),
                                 created_at=now,
                             ))
-                    except Exception:
-                        pass
-            except Exception:
-                pass
+                    except Exception as e:
+                        logger.debug(f"Suppressed: {e}")
+            except Exception as e:
+                logger.debug(f"Suppressed: {e}")
 
         # Check git state
         try:
@@ -411,8 +411,8 @@ class CoachEngine:
                     detail="Large number of uncommitted files. Consider committing or .gitignoring.",
                     created_at=now,
                 ))
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Suppressed: {e}")
 
         return issues
 
