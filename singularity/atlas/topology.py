@@ -231,6 +231,7 @@ class TopologyGraph:
             existing.ports = module.ports
             existing.service = module.service
             existing.resources = module.resources
+            existing.status = module.status  # Reset status (revives gone/stale modules)
             existing.last_seen = now
             existing._miss_count = 0
             if module.health_result.checked_at:
