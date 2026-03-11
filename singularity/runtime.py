@@ -1676,9 +1676,9 @@ class Runtime:
                             message = event.get("message", "")
                             
                             if channel_id and message and self.adapters.get("discord"):
-                                from .nerve.models import OutboundMessage
+                                from .nerve.types import OutboundMessage
                                 adapter = self.adapters["discord"]
-                                await adapter.send_message(
+                                await adapter.send(
                                     channel_id,
                                     OutboundMessage(content=message)
                                 )
@@ -1691,7 +1691,7 @@ class Runtime:
                             
                             # Also forward CRITICAL/HIGH to Discord #dispatch
                             if severity in ("CRITICAL", "HIGH") and self.adapters.get("discord"):
-                                from .nerve.models import OutboundMessage
+                                from .nerve.types import OutboundMessage
                                 payload = event.get("payload", {})
                                 msg = (
                                     f"**[{severity}] ExfilGuard Security Alert**\n"
@@ -1704,7 +1704,7 @@ class Runtime:
                                 adapter = self.adapters["discord"]
                                 # Forward to dispatch + security channels
                                 for ch_id in ("1478716096667189292", "1328051692167762034"):
-                                    await adapter.send_message(
+                                    await adapter.send(
                                         ch_id,
                                         OutboundMessage(content=msg)
                                     )
