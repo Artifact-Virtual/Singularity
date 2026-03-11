@@ -64,6 +64,7 @@ class TurnResult:
     provider: str = ""
     finish_reason: str = "stop"     # stop, budget_exceeded, error
     error: Optional[str] = None
+    tool_messages: list = None      # assistant tool_call + tool result messages to persist
 
 
 class AgentLoop:
@@ -110,6 +111,7 @@ class AgentLoop:
             TurnResult with the final response and metadata.
         """
         t0 = time.perf_counter()
+        new_tool_messages: list[ChatMessage] = []  # tool call + result messages for persistence
         
         try:
             while self._iteration < self._max_iterations:
@@ -219,15 +221,18 @@ class AgentLoop:
                         latency_ms=latency,
                         provider=response.provider_name,
                         finish_reason="stop",
+                        tool_messages=new_tool_messages,
                     )
                 
                 # ── ACT: Execute tool calls ──────────────────────
                 # Add assistant message with tool calls to history
-                messages.append(ChatMessage(
+                asst_tool_msg = ChatMessage(
                     role="assistant",
                     content=response.content or "",
                     tool_calls=response.tool_calls,
-                ))
+                )
+                messages.append(asst_tool_msg)
+                new_tool_messages.append(asst_tool_msg)
                 
                 # Execute tools (parallel or serial)
                 tool_results = await self._execute_tools(response.tool_calls)
@@ -235,12 +240,14 @@ class AgentLoop:
                 
                 # ── OBSERVE: Add tool results to history ─────────
                 for tc, result in zip(response.tool_calls, tool_results):
-                    messages.append(ChatMessage(
+                    tool_msg = ChatMessage(
                         role="tool",
                         content=result,
                         tool_call_id=tc["id"],
                         name=tc["function"]["name"],
-                    ))
+                    )
+                    messages.append(tool_msg)
+                    new_tool_messages.append(tool_msg)
             
             # Budget exhausted — but BLINK may save us
             latency = (time.perf_counter() - t0) * 1000
@@ -266,6 +273,7 @@ class AgentLoop:
                 latency_ms=latency,
                 provider=self.voice.active.name if self.voice.active else "unknown",
                 finish_reason="budget_exceeded",
+                tool_messages=new_tool_messages,
             )
             
         except Exception as e:

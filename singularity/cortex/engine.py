@@ -365,7 +365,19 @@ class CortexEngine:
             final_result.iterations = blink.state.total_iterations
             final_result.tool_calls_total = blink.state.total_tool_calls
         
-        # 4. Store assistant response in session
+        # 4. Store tool messages + assistant response in session
+        # Persist tool call messages (assistant+tool_calls) and tool results (role=tool)
+        # so that session history survives restarts and compaction has accurate size data
+        if final_result.tool_messages:
+            for tm in final_result.tool_messages:
+                await self.sessions.add_message(session_id, Message(
+                    role=tm.role,
+                    content=tm.content or "",
+                    tool_calls=tm.tool_calls,
+                    tool_call_id=tm.tool_call_id,
+                    name=tm.name,
+                ))
+
         if final_result.response:
             assistant_msg = Message(
                 role="assistant",
