@@ -404,6 +404,7 @@ class Runtime:
             persona_name=agent_config.persona_name,
             identity_files=identity_files,
             context_budget=self.config.memory.max_context_tokens,
+            target_tokens=getattr(self.config.memory, 'target_tokens', 0),
             agent=agent_config,
             blink=blink_config,
         )

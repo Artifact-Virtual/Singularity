@@ -44,6 +44,7 @@ class CortexConfig:
     identity_files: list[str] = None  # Paths to identity files to load
     rules: str = ""
     context_budget: int = 180_000
+    target_tokens: int = 0  # If >0, compaction fires at target_tokens/context_budget
     agent: Optional[AgentConfig] = None
     blink: Optional[BlinkConfig] = None
     
@@ -218,7 +219,11 @@ class CortexEngine:
                 
                 # ── Layer 1: Context Monitor — compaction check ──
                 history_for_check = chat_history[:-1] if blink.state.depth == 0 else chat_history
-                compaction_threshold = 0.75
+                # Use target_tokens-derived threshold when configured, else default 0.75
+                if self.config.target_tokens > 0:
+                    compaction_threshold = self.config.target_tokens / self.config.context_budget
+                else:
+                    compaction_threshold = 0.75
                 if self._context.needs_compaction(history_for_check, threshold=compaction_threshold):
                     logger.warning(
                         f"Context at >75%% capacity for session {session_id[:12]}... "
