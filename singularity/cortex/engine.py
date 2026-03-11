@@ -101,6 +101,7 @@ class CortexEngine:
         self._prompt_loaded = False
         self._prompt_lock = asyncio.Lock()
         self._session_locks: dict[str, asyncio.Lock] = {}  # Per-session concurrency guard
+        self._session_turn_counts: dict[str, int] = {}     # Turn counter per session for flush_at
         self._context = ContextAssembler(
             context_budget=config.context_budget,
         )
@@ -217,7 +218,8 @@ class CortexEngine:
                 
                 # ── Layer 1: Context Monitor — compaction check ──
                 history_for_check = chat_history[:-1] if blink.state.depth == 0 else chat_history
-                if self._context.needs_compaction(history_for_check, threshold=0.75):
+                compaction_threshold = 0.75
+                if self._context.needs_compaction(history_for_check, threshold=compaction_threshold):
                     logger.warning(
                         f"Context at >75%% capacity for session {session_id[:12]}... "
                         f"— auto-staging to COMB and compacting"
@@ -365,6 +367,20 @@ class CortexEngine:
                 content=final_result.response,
             )
             await self.sessions.add_message(session_id, assistant_msg)
+
+        # 5. Periodic COMB flush — fire every flush_at turns if comb is available
+        flush_at = getattr(self.config, 'flush_at', 0)
+        if flush_at > 0 and self.comb:
+            self._session_turn_counts[session_id] = self._session_turn_counts.get(session_id, 0) + 1
+            if self._session_turn_counts[session_id] % flush_at == 0:
+                try:
+                    await self._auto_stage_comb(session_id, chat_history)
+                    logger.info(
+                        f"COMB periodic flush: session={session_id[:12]}... "
+                        f"turn={self._session_turn_counts[session_id]}"
+                    )
+                except Exception as e:
+                    logger.warning(f"COMB periodic flush failed: {e}")
         
         blink_info = ""
         if blink.state.depth > 0:

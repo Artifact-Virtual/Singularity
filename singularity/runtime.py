@@ -1708,6 +1708,61 @@ class Runtime:
                                         ch_id,
                                         OutboundMessage(content=msg)
                                     )
+                                
+                                # Auto-dispatch CISO for threat investigation
+                                if self.dispatcher:
+                                    hunt_directive = (
+                                        f"SECURITY INCIDENT — ExfilGuard {severity} alert.\n"
+                                        f"Type: {payload.get('type', 'unknown')}\n"
+                                        f"Source IP: {payload.get('ip', 'unknown')}\n"
+                                        f"rDNS: {payload.get('rdns', 'unknown')}\n"
+                                        f"Timestamp: {event.get('timestamp', 'unknown')}\n\n"
+                                        f"HUNT DIRECTIVE:\n"
+                                        f"1. Investigate this event — correlate with system logs, network activity, auth logs\n"
+                                        f"2. Determine if this is a genuine threat or false positive\n"
+                                        f"3. If genuine: identify scope, affected systems, recommend containment\n"
+                                        f"4. If false positive: document why and recommend detection tuning\n"
+                                        f"5. Report findings with confidence level and evidence"
+                                    )
+                                    try:
+                                        # CISO investigates IMMEDIATELY — not queued
+                                        ciso_result = await self.dispatcher.dispatch_to(
+                                            target="ciso",
+                                            description=hunt_directive,
+                                            priority="critical",
+                                            context={"source": "exfilguard", "event": event},
+                                        )
+                                        logger.info(f"ExfilGuard: CISO investigation complete — status: {ciso_result.status}")
+                                        
+                                        # Feed findings back to ATLAS as a security issue
+                                        if self.atlas:
+                                            from .atlas.topology import Issue, IssueSeverity, IssueCategory
+                                            import datetime
+                                            atlas_issue = Issue(
+                                                id=f"exfil-{event.get('timestamp', 'unknown')[:19]}",
+                                                severity=IssueSeverity.CRITICAL if severity == "CRITICAL" else IssueSeverity.HIGH,
+                                                category=IssueCategory.SECURITY,
+                                                module_id="exfilguard",
+                                                title=f"ExfilGuard {severity}: {payload.get('type', 'unknown')}",
+                                                detail=(
+                                                    f"IP: {payload.get('ip', '?')} | rDNS: {payload.get('rdns', '?')}\n"
+                                                    f"CISO verdict: {getattr(ciso_result, 'summary', 'investigation complete')}"
+                                                ),
+                                                created_at=datetime.datetime.now().isoformat(),
+                                            )
+                                            self.atlas.graph.modules.setdefault("exfilguard", None)
+                                            # Inject issue into latest cycle issues for reporting
+                                            self.atlas._last_issues.append(atlas_issue)
+                                            
+                                            # Emit atlas.alert so Discord gets the enriched report
+                                            if self.atlas.bus:
+                                                await self.atlas.bus.emit("atlas.alert", {
+                                                    "issue": atlas_issue.to_dict(),
+                                                    "source": "exfilguard-ciso",
+                                                })
+                                            logger.info("ExfilGuard: ATLAS updated with CISO findings")
+                                    except Exception as e:
+                                        logger.error(f"ExfilGuard: CISO dispatch failed: {e}")
                         
                         # Processed — delete
                         event_file.unlink()
