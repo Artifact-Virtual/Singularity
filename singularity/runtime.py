@@ -1616,7 +1616,7 @@ class Runtime:
             logger.info(msg)
             
             # Post to #bridge channel
-            bridge_channel = "1478452753360748545"
+            bridge_channel = "1478716092992979035"
             if "discord" in self.adapters:
                 from .nerve.types import OutboundMessage
                 try:
