@@ -1746,17 +1746,18 @@ class Runtime:
                                             priority="critical",
                                             context={"source": "exfilguard", "event": event},
                                         )
-                                        logger.info(f"ExfilGuard: CISO investigation complete — status: {ciso_result.status}")
+                                        logger.info(f"ExfilGuard: CISO investigation complete — succeeded: {ciso_result.all_succeeded}, tasks: {len(ciso_result.tasks)}")
                                         
                                         # Post CISO verdict to #dispatch mentioning @Singularity
-                                        if ciso_result.status.value == "complete" and self.adapters.get("discord"):
+                                        ciso_response = ciso_result.tasks[0].response if ciso_result.tasks else ""
+                                        if ciso_result.all_succeeded and ciso_response and self.adapters.get("discord"):
                                             # Build concise dispatch message
                                             verdict_msg = (
                                                 f"🛡️ **CISO Security Report** — ExfilGuard {severity}\n"
                                                 f"**IP:** {payload.get('ip', '?')} | **rDNS:** {payload.get('rdns', '?')}\n"
                                                 f"**Process:** {payload.get('process', '?')}\n\n"
-                                                f"{ciso_result.response[:1800]}\n\n"
-                                                f"<@{self.config.get('discord_bot_id', '1478396689642688634')}>"  # @Singularity
+                                                f"{ciso_response[:1800]}\n\n"
+                                                f"<@{getattr(self.config, 'bot_user_id', '1478396689642688634')}>"  # @Singularity
                                             )
                                             dispatch_channel = "1478716096667189292"  # #dispatch
                                             await self.adapters["discord"].send(
@@ -1777,7 +1778,7 @@ class Runtime:
                                                 title=f"ExfilGuard {severity}: {payload.get('type', 'unknown')}",
                                                 detail=(
                                                     f"IP: {payload.get('ip', '?')} | rDNS: {payload.get('rdns', '?')}\n"
-                                                    f"CISO verdict: {getattr(ciso_result, 'summary', 'investigation complete')}"
+                                                    f"CISO verdict: {ciso_response[:500] if ciso_response else 'investigation complete'}"
                                                 ),
                                                 created_at=datetime.datetime.now().isoformat(),
                                             )
