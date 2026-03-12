@@ -42,7 +42,11 @@ ROLE_CONFIG = {
     "coo": {"name": "COO", "emoji": "📋", "color": 0x2ECC71},   # Green
     "cfo": {"name": "CFO", "emoji": "💰", "color": 0xF1C40F},   # Gold
     "ciso": {"name": "CISO", "emoji": "🔒", "color": 0xE74C3C}, # Red
+    "cmo": {"name": "CMO", "emoji": "📣", "color": 0x9B59B6},   # Purple
 }
+
+# Singularity's own Discord bot ID — all C-Suite posts @mention this
+SINGULARITY_BOT_ID = "1478409279777013862"
 
 
 class WebhookReporter:
@@ -237,6 +241,7 @@ class WebhookReporter:
 
         payload = {
             "username": f"Singularity {config['name']}",
+            "content": f"<@{SINGULARITY_BOT_ID}>",
             "embeds": [embed],
         }
 
@@ -302,6 +307,7 @@ class WebhookReporter:
 
         payload = {
             "username": "Singularity Dispatch",
+            "content": f"<@{SINGULARITY_BOT_ID}>",
             "embeds": [embed],
         }
 
