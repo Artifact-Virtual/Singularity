@@ -1,0 +1,1129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Singularity — The Autonomous Enterprise Runtime</title>
+<meta name="description" content="Self-healing, self-optimizing, self-evolving AI infrastructure that runs your entire organization. Not a chatbot. An operating system.">
+<meta property="og:title" content="Singularity — The Autonomous Enterprise Runtime">
+<meta property="og:description" content="Self-healing, self-optimizing, self-evolving. The AI runtime that runs your entire organization autonomously.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://singularity.artifactvirtual.com">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --primary: #7c6aff;
+  --primary-dim: #6355cc;
+  --primary-glow: rgba(124, 106, 255, 0.15);
+  --bg: #0a0a0f;
+  --bg-elevated: #12121a;
+  --bg-card: #16161f;
+  --text: #e8e6f0;
+  --text-dim: #8a8899;
+  --text-muted: #5a586a;
+  --border: #2a2838;
+  --success: #34d399;
+  --warning: #fbbf24;
+  --danger: #f87171;
+  --mono: 'JetBrains Mono', monospace;
+  --sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+/* ─── Utilities ────────────────────────────── */
+.container { max-width: 1200px; margin: 0 auto; padding: 0 2rem; }
+.section { padding: 8rem 0; }
+.mono { font-family: var(--mono); }
+.text-primary { color: var(--primary); }
+.text-dim { color: var(--text-dim); }
+.text-muted { color: var(--text-muted); }
+
+/* ─── Navigation ───────────────────────────── */
+nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  padding: 1rem 0;
+  background: rgba(10, 10, 15, 0.8);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border);
+}
+nav .container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.nav-logo {
+  font-weight: 800;
+  font-size: 1.2rem;
+  color: var(--primary);
+  text-decoration: none;
+  letter-spacing: -0.02em;
+}
+.nav-logo span { color: var(--text-dim); font-weight: 400; font-size: 0.85rem; margin-left: 0.5rem; }
+.nav-links { display: flex; gap: 2rem; align-items: center; }
+.nav-links a {
+  color: var(--text-dim);
+  text-decoration: none;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+.nav-links a:hover { color: var(--text); }
+.nav-cta {
+  background: var(--primary) !important;
+  color: #fff !important;
+  padding: 0.5rem 1.2rem;
+  border-radius: 6px;
+  font-weight: 600 !important;
+  transition: background 0.2s !important;
+}
+.nav-cta:hover { background: var(--primary-dim) !important; }
+
+/* ─── Hero ─────────────────────────────────── */
+.hero {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  position: relative;
+  overflow: hidden;
+}
+.hero::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle at 50% 50%, var(--primary-glow) 0%, transparent 50%);
+  animation: pulse-glow 8s ease-in-out infinite;
+}
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.3; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(1.1); }
+}
+.hero-content { position: relative; z-index: 1; max-width: 900px; }
+.hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 1rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 100px;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  margin-bottom: 2rem;
+  font-family: var(--mono);
+}
+.hero-badge .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--success);
+  animation: blink 2s ease-in-out infinite;
+}
+@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+.hero h1 {
+  font-size: clamp(3rem, 7vw, 5.5rem);
+  font-weight: 900;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  margin-bottom: 1.5rem;
+}
+.hero h1 .gradient {
+  background: linear-gradient(135deg, var(--primary), #a78bfa, var(--primary));
+  background-size: 200% 200%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: gradient-shift 6s ease infinite;
+}
+@keyframes gradient-shift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+.hero-sub {
+  font-size: clamp(1.1rem, 2vw, 1.4rem);
+  color: var(--text-dim);
+  line-height: 1.6;
+  max-width: 700px;
+  margin-bottom: 3rem;
+}
+.hero-actions { display: flex; gap: 1rem; flex-wrap: wrap; }
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.85rem 2rem;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: all 0.2s;
+  border: none;
+  cursor: pointer;
+}
+.btn-primary {
+  background: var(--primary);
+  color: #fff;
+}
+.btn-primary:hover { background: var(--primary-dim); transform: translateY(-1px); }
+.btn-ghost {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+.btn-ghost:hover { border-color: var(--text-muted); background: var(--bg-card); }
+.hero-stats {
+  display: flex;
+  gap: 3rem;
+  margin-top: 4rem;
+  padding-top: 2rem;
+  border-top: 1px solid var(--border);
+}
+.stat-item .stat-value {
+  font-size: 1.8rem;
+  font-weight: 800;
+  font-family: var(--mono);
+  color: var(--primary);
+}
+.stat-item .stat-label {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-top: 0.2rem;
+}
+
+/* ─── Manifesto ────────────────────────────── */
+.manifesto {
+  text-align: center;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.manifesto-text {
+  font-size: clamp(1.3rem, 3vw, 2rem);
+  font-weight: 300;
+  color: var(--text-dim);
+  max-width: 800px;
+  margin: 0 auto;
+  line-height: 1.7;
+}
+.manifesto-text strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* ─── Comparison ───────────────────────────── */
+.comparison-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  margin-top: 3rem;
+}
+.comparison-col { padding: 2rem; }
+.comparison-col:first-child {
+  background: var(--bg-elevated);
+  border-right: 1px solid var(--border);
+}
+.comparison-col:last-child { background: var(--bg-card); }
+.comparison-header {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  margin-bottom: 1.5rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+.comparison-col:last-child .comparison-header { color: var(--primary); }
+.comparison-item {
+  padding: 0.6rem 0;
+  font-size: 0.95rem;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.comparison-col:first-child .comparison-item { color: var(--text-muted); }
+.comparison-col:last-child .comparison-item { color: var(--text); }
+.comparison-icon { font-size: 0.8rem; flex-shrink: 0; }
+
+/* ─── Architecture ─────────────────────────── */
+.arch-title {
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin-bottom: 1rem;
+}
+.arch-sub {
+  color: var(--text-dim);
+  font-size: 1.1rem;
+  max-width: 600px;
+  margin-bottom: 4rem;
+}
+.subsystem-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.subsystem-card {
+  background: var(--bg-card);
+  padding: 1.5rem;
+  transition: background 0.2s;
+}
+.subsystem-card:hover { background: var(--bg-elevated); }
+.subsystem-name {
+  font-family: var(--mono);
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--primary);
+  margin-bottom: 0.3rem;
+}
+.subsystem-purpose {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 0.4rem;
+}
+.subsystem-desc {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+/* ─── Capabilities ─────────────────────────── */
+.cap-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  gap: 2rem;
+  margin-top: 4rem;
+}
+.cap-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 2rem;
+  transition: border-color 0.2s;
+}
+.cap-card:hover { border-color: var(--primary); }
+.cap-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  background: var(--primary-glow);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  margin-bottom: 1rem;
+}
+.cap-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+.cap-desc {
+  font-size: 0.9rem;
+  color: var(--text-dim);
+  line-height: 1.6;
+}
+
+/* ─── Code Block ───────────────────────────── */
+.code-section { background: var(--bg-elevated); }
+.code-block {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 2rem;
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  line-height: 1.8;
+  overflow-x: auto;
+  margin-top: 2rem;
+  color: var(--text-dim);
+}
+.code-block .comment { color: var(--text-muted); }
+.code-block .command { color: var(--primary); }
+.code-block .string { color: var(--success); }
+
+/* ─── Terminal ─────────────────────────────── */
+.terminal {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  margin-top: 3rem;
+}
+.terminal-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.8rem 1rem;
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border);
+}
+.terminal-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+.terminal-dot:nth-child(1) { background: #f87171; }
+.terminal-dot:nth-child(2) { background: #fbbf24; }
+.terminal-dot:nth-child(3) { background: #34d399; }
+.terminal-title {
+  margin-left: 0.5rem;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+.terminal-body {
+  padding: 1.5rem;
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  line-height: 2;
+  color: var(--text-dim);
+}
+.terminal-body .prompt { color: var(--primary); }
+.terminal-body .output { color: var(--text-muted); }
+.terminal-body .success { color: var(--success); }
+.terminal-body .highlight { color: var(--text); }
+
+/* ─── CTA ──────────────────────────────────── */
+.cta-section {
+  text-align: center;
+  border-top: 1px solid var(--border);
+}
+.cta-section h2 {
+  font-size: clamp(2rem, 4vw, 3.5rem);
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  margin-bottom: 1rem;
+}
+.cta-section p {
+  color: var(--text-dim);
+  font-size: 1.1rem;
+  max-width: 600px;
+  margin: 0 auto 3rem;
+}
+
+/* ─── Footer ───────────────────────────────── */
+footer {
+  padding: 3rem 0;
+  border-top: 1px solid var(--border);
+  text-align: center;
+}
+footer p {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+footer a {
+  color: var(--primary);
+  text-decoration: none;
+}
+
+/* ─── Responsive ───────────────────────────── */
+@media (max-width: 768px) {
+  .nav-links { display: none; }
+  .hero-stats { flex-wrap: wrap; gap: 1.5rem; }
+  .comparison-grid { grid-template-columns: 1fr; }
+  .comparison-col:first-child { border-right: none; border-bottom: 1px solid var(--border); }
+  .subsystem-grid { grid-template-columns: 1fr; }
+  .cap-grid { grid-template-columns: 1fr; }
+  .section { padding: 5rem 0; }
+}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="container" style="display:flex;align-items:center;justify-content:space-between;padding:1rem 0">
+    <a href="/" class="nav-logo">⚡ SINGULARITY</a>
+    <div class="nav-links">
+      <a href="#architecture">Architecture</a>
+      <a href="#capabilities">Capabilities</a>
+      <a href="#subsystems">Subsystems</a>
+      <a href="#tools">Tools</a>
+      <a href="https://github.com/Artifact-Virtual/singularity" class="nav-cta" target="_blank">GitHub →</a>
+    </div>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-glow"></div>
+  <div class="hero-grid-bg"></div>
+  <div class="hero-inner">
+    <div class="hero-eyebrow">
+      <span class="status-pill">● OPERATIONAL</span>
+      <span class="badge badge-public">PUBLIC</span>
+      <span class="badge badge-python">Python 3.11+</span>
+      <span class="badge badge-prod">PRODUCTION</span>
+    </div>
+    <h1 class="hero-title">The enterprise that<br>runs <span class="hi-purple">itself.</span></h1>
+    <p class="hero-sub">Singularity is an autonomous enterprise runtime — self-healing, self-optimizing AI infrastructure that audits, delegates, monitors, and evolves without human intervention.</p>
+    <p class="hero-tagline">Built by <span class="hi-amber">AVA</span>. Designed by <span class="hi-text">Ali Shakil</span>. For the enterprise that never sleeps.</p>
+    <div class="hero-actions">
+      <a href="https://github.com/Artifact-Virtual/singularity" class="btn-primary" target="_blank">⚡ View on GitHub</a>
+      <a href="#architecture" class="btn-secondary">Explore Architecture →</a>
+    </div>
+    <div class="hero-stats">
+      <div class="hero-stat"><span class="num">82</span><span class="label">Files</span></div>
+      <div class="hero-stat"><span class="num">31K</span><span class="label">Lines</span></div>
+      <div class="hero-stat"><span class="num">13</span><span class="label">Subsystems</span></div>
+      <div class="hero-stat"><span class="num">28</span><span class="label">Tools</span></div>
+      <div class="hero-stat"><span class="num">0</span><span class="label">Downtime</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- METRICS BANNER -->
+<div class="metrics-banner">
+  <div class="metrics-inner">
+    <div><span class="metric-val hi-green">99.9%</span><span class="metric-label">Uptime</span></div>
+    <div><span class="metric-val hi-purple">13</span><span class="metric-label">Subsystems</span></div>
+    <div><span class="metric-val hi-amber">6</span><span class="metric-label">Active POAs</span></div>
+    <div><span class="metric-val hi-text">4</span><span class="metric-label">C-Suite Executives</span></div>
+    <div><span class="metric-val hi-green">24/7</span><span class="metric-label">Autonomous</span></div>
+  </div>
+</div>
+
+<!-- TERMINAL DEMO -->
+<section class="section" id="demo">
+  <div class="container">
+    <span class="section-label">LIVE DEMO</span>
+    <h2 class="section-title">See it <span class="hi-purple">think.</span></h2>
+    <div class="terminal">
+      <div class="terminal-header">
+        <span class="t-dot r"></span><span class="t-dot y"></span><span class="t-dot g"></span>
+        <span class="t-title">singularity — dragonfly</span>
+      </div>
+      <div class="terminal-body">
+        <div class="t-line"><span class="t-prompt">$</span> <span class="t-cmd">singularity boot</span></div>
+        <div class="t-line t-out-ok">✅ Phase 0: Core Validation ............. OK</div>
+        <div class="t-line t-out-ok">✅ Phase 1: Event Bus ................... OK</div>
+        <div class="t-line t-out-ok">✅ Phase 2: MARROW (Memory) ............. OK</div>
+        <div class="t-line t-out-ok">✅ Phase 3: SINEW (Tools — 28) .......... OK</div>
+        <div class="t-line t-out-ok">✅ Phase 4: VOICE (LLM Provider) ........ OK</div>
+        <div class="t-line t-out-ok">✅ Phase 5: CORTEX (Agent Loop) ......... OK</div>
+        <div class="t-line t-out-ok">✅ Phase 6: CSUITE (Executives) ......... OK</div>
+        <div class="t-line t-out-ok">✅ Phase 7: NEXUS (Self-Optimization) ... OK</div>
+        <div class="t-line t-out-ok">✅ Phase 8: PULSE (Scheduler) ........... OK</div>
+        <div class="t-line t-out-ok">✅ Phase 8.5: POA (Product Agents) ...... OK</div>
+        <div class="t-line t-out-ok">✅ Phase 9: IMMUNE (Self-Healing) ....... OK</div>
+        <div class="t-line t-out-ok">✅ Phase 10-12: NERVE (Discord + HTTP) .. OK</div>
+        <div class="t-line t-out-purple">⚡ Singularity [AE] online — 13 subsystems, 0 failures</div>
+        <div class="t-line">&nbsp;</div>
+        <div class="t-line"><span class="t-prompt">$</span> <span class="t-cmd">singularity dispatch --target cto "Audit infrastructure health"</span></div>
+        <div class="t-line t-out-info">📋 Dispatch 4f8a2c1e → CTO (high priority)</div>
+        <div class="t-line t-out-dim">   CTO spawned — 25 iteration budget, scoped tools: exec, read, write</div>
+        <div class="t-line t-out-ok">   ✅ CTO completed in 142s — 3 findings, 2 auto-fixed</div>
+        <div class="t-line">&nbsp;</div>
+        <div class="t-line"><span class="t-prompt">$</span> <span class="t-cmd">singularity nexus evolve --dry-run=false</span></div>
+        <div class="t-line t-out-info">🔬 Scanning codebase... 82 files, 31K lines</div>
+        <div class="t-line t-out-ok">   Found 4 safe evolutions — applying via hot-swap</div>
+        <div class="t-line t-out-purple">   ⚡ Self-improvement complete. 4 patterns fixed. 0 regressions.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ARCHITECTURE -->
+<section class="section section-alt" id="architecture">
+  <div class="container">
+    <span class="section-label">ARCHITECTURE</span>
+    <h2 class="section-title">13 phases. Zero <span class="hi-red">single points of failure.</span></h2>
+    <p class="section-body">Every subsystem boots in dependency order. Every phase gates on the last. If something fails, IMMUNE detects and recovers — faster than entropy accumulates.</p>
+    
+    <div class="arch-wrapper">
+      <div class="arch-header">
+        <span class="hi-dim">BOOT SEQUENCE</span>
+        <span class="badge badge-lines">LINEAR + BRANCHING</span>
+      </div>
+      <div class="arch-body">
+        <div class="boot-step"><span class="boot-num">0</span><div class="boot-content"><span class="boot-title">CORE</span><span class="boot-desc">Integrity validation — .core/ files, configs, secrets</span></div></div>
+        <div class="arch-dot"></div>
+        <div class="boot-step"><span class="boot-num">1</span><div class="boot-content"><span class="boot-title">EVENT BUS</span><span class="boot-desc">Internal pub/sub — subsystem communication backbone</span></div></div>
+        <div class="arch-dot"></div>
+        <div class="boot-step"><span class="boot-num">2</span><div class="boot-content"><span class="boot-title">MARROW</span><span class="boot-desc">Memory — COMB persistence, sessions, context bridge</span></div></div>
+        <div class="arch-dot"></div>
+        <div class="boot-step"><span class="boot-num">3</span><div class="boot-content"><span class="boot-title">SINEW</span><span class="boot-desc">28 tools — exec, read, write, search, dispatch, monitor</span></div></div>
+        <div class="arch-dot"></div>
+        <div class="boot-step"><span class="boot-num">4</span><div class="boot-content"><span class="boot-title">VOICE</span><span class="boot-desc">LLM provider chain — Copilot → Ollama, circuit breaker fallback</span></div></div>
+        <div class="arch-dot"></div>
+        <div class="boot-step"><span class="boot-num">5</span><div class="boot-content"><span class="boot-title">CORTEX</span><span class="boot-desc">Agent loop — planner, tool orchestration, BLINK continuation</span></div></div>
+        <div class="arch-dot"></div>
+        <div class="boot-step"><span class="boot-num">6</span><div class="boot-content"><span class="boot-title">C-SUITE</span><span class="boot-desc">CTO, COO, CFO, CISO — autonomous executive delegation</span></div></div>
+        <div class="arch-dot"></div>
+        <div class="boot-step"><span class="boot-num">7</span><div class="boot-content"><span class="boot-title">NEXUS</span><span class="boot-desc">Self-optimization — AST analysis, hot-swap, evolution engine</span></div></div>
+        <div class="arch-dot"></div>
+        <div class="boot-step"><span class="boot-num">8</span><div class="boot-content"><span class="boot-title">PULSE</span><span class="boot-desc">Scheduler — cron, timers, budgets, POA scheduling</span></div></div>
+        <div class="arch-dot"></div>
+        <div class="boot-step"><span class="boot-num">8.5</span><div class="boot-content"><span class="boot-title">POA</span><span class="boot-desc">Product Owner Agents — health, uptime, alert escalation</span></div></div>
+        <div class="arch-dot"></div>
+        <div class="boot-step"><span class="boot-num">9</span><div class="boot-content"><span class="boot-title">IMMUNE</span><span class="boot-desc">Self-healing — watchdog, degradation detection, auto-recovery</span></div></div>
+        <div class="arch-dot"></div>
+        <div class="boot-step"><span class="boot-num">10–12</span><div class="boot-content"><span class="boot-title">NERVE</span><span class="boot-desc">Communications — Discord adapter, HTTP API, message routing</span></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CAPABILITIES -->
+<section class="section" id="capabilities">
+  <div class="container">
+    <span class="section-label">CAPABILITIES</span>
+    <h2 class="section-title">Not an assistant. An <span class="hi-purple">operating system.</span></h2>
+    <div class="cap-grid">
+      <div class="cap-card">
+        <div class="cap-icon">🔄</div>
+        <span class="cap-tag">AUTONOMOUS</span>
+        <h3 class="cap-title">Self-Healing</h3>
+        <p class="cap-body">IMMUNE subsystem detects degradation across all 13 subsystems. Auto-restarts, auto-recovers, auto-escalates. Heals faster than it degrades.</p>
+      </div>
+      <div class="cap-card">
+        <div class="cap-icon">🧬</div>
+        <span class="cap-tag">EVOLUTION</span>
+        <h3 class="cap-title">Self-Optimizing</h3>
+        <p class="cap-body">NEXUS scans its own codebase via AST analysis. Finds anti-patterns, proposes fixes, hot-swaps live functions at runtime. The codebase improves every week.</p>
+      </div>
+      <div class="cap-card">
+        <div class="cap-icon">👔</div>
+        <span class="cap-tag">DELEGATION</span>
+        <h3 class="cap-title">C-Suite Executives</h3>
+        <p class="cap-body">CTO, COO, CFO, CISO — each with scoped tools, domain expertise, and budget limits. Dispatch tasks, review results, synthesize reports. Autonomous management.</p>
+      </div>
+      <div class="cap-card">
+        <div class="cap-icon">📡</div>
+        <span class="cap-tag">MONITORING</span>
+        <h3 class="cap-title">Product Agents (POA)</h3>
+        <p class="cap-body">Every shipped product gets a dedicated agent. Health checks every 4 hours. SSL, endpoints, uptime, ports. RED → auto-escalation to Discord.</p>
+      </div>
+      <div class="cap-card">
+        <div class="cap-icon">🧠</div>
+        <span class="cap-tag">MEMORY</span>
+        <h3 class="cap-title">Lossless Persistence</h3>
+        <p class="cap-body">COMB stages context before shutdown, recalls on boot. HEKTOR provides enterprise-wide hybrid search (BM25 + vector). Nothing is forgotten.</p>
+      </div>
+      <div class="cap-card">
+        <div class="cap-icon">🛡️</div>
+        <span class="cap-tag">SECURITY</span>
+        <h3 class="cap-title">Sentinel + ExfilGuard</h3>
+        <p class="cap-body">Real-time exfiltration detection, YARA scanning, credential exposure monitoring, dynamic whitelisting. Security is continuous, not periodic.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SUBSYSTEMS -->
+<section class="section section-alt" id="subsystems">
+  <div class="container">
+    <span class="section-label">SUBSYSTEMS</span>
+    <h2 class="section-title">13 subsystems. <span class="hi-green">All operational.</span></h2>
+    <div class="subsystems-grid">
+      <div class="subsystem-card"><h3 class="sys-name">MARROW</h3><span class="sys-tag">Memory</span><p class="sys-desc">COMB persistence + session management + context bridge across restarts</p></div>
+      <div class="subsystem-card"><h3 class="sys-name">SINEW</h3><span class="sys-tag">Tools</span><p class="sys-desc">28 native tools — filesystem, exec, web, Discord, memory, NEXUS, dispatch</p></div>
+      <div class="subsystem-card"><h3 class="sys-name">VOICE</h3><span class="sys-tag">LLM</span><p class="sys-desc">Provider chain with circuit breaker — Copilot → Ollama fallback</p></div>
+      <div class="subsystem-card"><h3 class="sys-name">CORTEX</h3><span class="sys-tag">Brain</span><p class="sys-desc">Agent loop, planner, tool orchestration, BLINK seamless continuation</p></div>
+      <div class="subsystem-card"><h3 class="sys-name">C-SUITE</h3><span class="sys-tag">Command</span><p class="sys-desc">CTO, COO, CFO, CISO — scoped executives with autonomous dispatch</p></div>
+      <div class="subsystem-card"><h3 class="sys-name">NEXUS</h3><span class="sys-tag">Evolution</span><p class="sys-desc">Self-optimization — AST scan, hot-swap engine, evolution cycles</p></div>
+      <div class="subsystem-card"><h3 class="sys-name">PULSE</h3><span class="sys-tag">Scheduler</span><p class="sys-desc">Cron jobs, interval timers, iteration budgets, POA scheduling</p></div>
+      <div class="subsystem-card"><h3 class="sys-name">POA</h3><span class="sys-tag">Products</span><p class="sys-desc">Product Owner Agents — health checks, uptime, alert escalation</p></div>
+      <div class="subsystem-card"><h3 class="sys-name">IMMUNE</h3><span class="sys-tag">Health</span><p class="sys-desc">Subsystem watchdog — degradation detection, auto-recovery</p></div>
+      <div class="subsystem-card"><h3 class="sys-name">NERVE</h3><span class="sys-tag">Comms</span><p class="sys-desc">Discord adapter + HTTP API — message routing, multi-channel</p></div>
+      <div class="subsystem-card"><h3 class="sys-name">HEKTOR</h3><span class="sys-tag">Knowledge</span><p class="sys-desc">Enterprise memory — BM25 + vector hybrid search across all data</p></div>
+      <div class="subsystem-card"><h3 class="sys-name">SENTINEL</h3><span class="sys-tag">Security</span><p class="sys-desc">ExfilGuard + YARA + OpenAnt — real-time threat detection</p></div>
+      <div class="subsystem-card"><h3 class="sys-name">ATLAS</h3><span class="sys-tag">Topology</span><p class="sys-desc">Enterprise board — module discovery, health aggregation, alerts</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- TOOLS -->
+<section class="section" id="tools">
+  <div class="container">
+    <span class="section-label">TOOLCHAIN</span>
+    <h2 class="section-title"><span class="hi-amber">28</span> native tools. Zero plugins.</h2>
+    <div class="tools-section">
+      <div class="tools-row">
+        <div class="tools-cat">Core</div>
+        <div class="tools-list">
+          <span class="tool-badge">exec</span>
+          <span class="tool-badge">read</span>
+          <span class="tool-badge">write</span>
+          <span class="tool-badge">edit</span>
+          <span class="tool-badge">web_fetch</span>
+        </div>
+      </div>
+      <div class="tools-row">
+        <div class="tools-cat">Comms</div>
+        <div class="tools-list">
+          <span class="tool-badge">discord_send</span>
+          <span class="tool-badge">discord_react</span>
+        </div>
+      </div>
+      <div class="tools-row">
+        <div class="tools-cat">Memory</div>
+        <div class="tools-list">
+          <span class="tool-badge">comb_stage</span>
+          <span class="tool-badge">comb_recall</span>
+          <span class="tool-badge">memory_search</span>
+        </div>
+      </div>
+      <div class="tools-row">
+        <div class="tools-cat">NEXUS</div>
+        <div class="tools-list">
+          <span class="tool-badge">nexus_audit</span>
+          <span class="tool-badge">nexus_status</span>
+          <span class="tool-badge">nexus_swap</span>
+          <span class="tool-badge">nexus_rollback</span>
+          <span class="tool-badge">nexus_evolve</span>
+        </div>
+      </div>
+      <div class="tools-row">
+        <div class="tools-cat">Delegation</div>
+        <div class="tools-list">
+          <span class="tool-badge">csuite_dispatch</span>
+          <span class="tool-badge">poa_setup</span>
+          <span class="tool-badge">poa_manage</span>
+        </div>
+      </div>
+      <div class="tools-row">
+        <div class="tools-cat">ATLAS</div>
+        <div class="tools-list">
+          <span class="tool-badge">atlas_status</span>
+          <span class="tool-badge">atlas_topology</span>
+          <span class="tool-badge">atlas_module</span>
+          <span class="tool-badge">atlas_report</span>
+          <span class="tool-badge">atlas_visibility</span>
+        </div>
+      </div>
+      <div class="tools-row">
+        <div class="tools-cat">Releases</div>
+        <div class="tools-list">
+          <span class="tool-badge">release_scan</span>
+          <span class="tool-badge">release_status</span>
+          <span class="tool-badge">release_confirm</span>
+          <span class="tool-badge">release_ship</span>
+          <span class="tool-badge">release_reject</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- COMPARISON -->
+<section class="section section-alt">
+  <div class="container">
+    <span class="section-label">COMPARISON</span>
+    <h2 class="section-title">This vs. <span class="hi-dim">everything else.</span></h2>
+    <div class="compare-grid">
+      <div class="compare-col them">
+        <div class="compare-col-head">Typical AI Agent</div>
+        <div class="compare-item"><span class="hi-red">✗</span> Single-shot responses</div>
+        <div class="compare-item"><span class="hi-red">✗</span> No memory across sessions</div>
+        <div class="compare-item"><span class="hi-red">✗</span> Manual monitoring</div>
+        <div class="compare-item"><span class="hi-red">✗</span> No self-improvement</div>
+        <div class="compare-item"><span class="hi-red">✗</span> Plugin-dependent</div>
+        <div class="compare-item"><span class="hi-red">✗</span> Breaks under load</div>
+        <div class="compare-item"><span class="hi-red">✗</span> Requires constant babysitting</div>
+      </div>
+      <div class="compare-col us">
+        <div class="compare-col-head">⚡ Singularity</div>
+        <div class="compare-item"><span class="hi-green">✓</span> Autonomous runtime with delegation</div>
+        <div class="compare-item"><span class="hi-green">✓</span> Lossless COMB persistence</div>
+        <div class="compare-item"><span class="hi-green">✓</span> 6 POAs monitoring 24/7</div>
+        <div class="compare-item"><span class="hi-green">✓</span> NEXUS self-optimization engine</div>
+        <div class="compare-item"><span class="hi-green">✓</span> 28 native tools, zero plugins</div>
+        <div class="compare-item"><span class="hi-green">✓</span> IMMUNE self-healing + circuit breakers</div>
+        <div class="compare-item"><span class="hi-green">✓</span> Runs itself. Reports results.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PHILOSOPHY -->
+<section class="section">
+  <div class="container">
+    <span class="section-label">PHILOSOPHY</span>
+    <h2 class="section-title">Principles, not <span class="hi-dim">platitudes.</span></h2>
+    <div class="phil-grid">
+      <div class="phil-card">
+        <span class="phil-glyph">⚖️</span>
+        <h3 class="phil-principle">0 = 0</h3>
+        <p class="phil-body">Perfect equilibrium. The enterprise should run in balance. Every system pushing toward zero — zero downtime, zero debt, zero entropy.</p>
+      </div>
+      <div class="phil-card">
+        <span class="phil-glyph">📐</span>
+        <h3 class="phil-principle">Execute, don't narrate</h3>
+        <p class="phil-body">Value is in outcomes. Audits produce reports. Health checks produce status. Tasks produce results. Everything else is noise.</p>
+      </div>
+      <div class="phil-card">
+        <span class="phil-glyph">🧬</span>
+        <h3 class="phil-principle">Heal faster than you degrade</h3>
+        <p class="phil-body">Everything breaks. The immune system recovers faster than entropy accumulates. Failure is movement. Stillness is death.</p>
+      </div>
+      <div class="phil-card">
+        <span class="phil-glyph">🔒</span>
+        <h3 class="phil-principle">Gate pattern always</h3>
+        <p class="phil-body">No phase starts until dependencies resolve. Linear progression with branching dependency trees — branches resolve before the trunk advances.</p>
+      </div>
+    </div>
+    <blockquote class="pull-quote">"Self-improvement is the point. Hit a wall → build a system to get past it → encode it → move forward permanently improved."</blockquote>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section">
+  <div class="cta-glow"></div>
+  <div class="container" style="position:relative;z-index:1;text-align:center">
+    <h2 class="cta-title">The first of its kind.</h2>
+    <p class="cta-sub">An autonomous runtime that doesn't just respond — it audits, delegates, monitors, heals, and evolves. Nothing like this has been built before.</p>
+    <div class="cta-buttons">
+      <a href="https://github.com/Artifact-Virtual/singularity" class="btn-primary btn-github" target="_blank">⚡ Star on GitHub</a>
+      <a href="https://github.com/Artifact-Virtual/singularity/blob/main/README.md" class="btn-secondary" target="_blank">Read the Docs</a>
+    </div>
+    <p class="cta-note">Open source. Production-proven. Built different.</p>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="container" style="display:flex;align-items:center;justify-content:space-between;padding:2rem 0;flex-wrap:wrap;gap:1rem">
+    <span class="footer-brand">⚡ Singularity [AE] — Artifact Virtual</span>
+    <div class="footer-links">
+      <a href="https://github.com/Artifact-Virtual" target="_blank">GitHub</a>
+      <a href="https://artifactvirtual.com" target="_blank">Artifact Virtual</a>
+      <a href="https://erp.artifactvirtual.com" target="_blank">ERP</a>
+      <a href="https://gdi.artifactvirtual.com" target="_blank">GDI</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
+<body>
+
+<!-- Navigation -->
+<nav>
+  <div class="container">
+    <a href="#" class="nav-logo">⚡ SINGULARITY <span>by Artifact Virtual</span></a>
+    <div class="nav-links">
+      <a href="#architecture">Architecture</a>
+      <a href="#capabilities">Capabilities</a>
+      <a href="#quickstart">Get Started</a>
+      <a href="https://github.com/Artifact-Virtual/singularity" class="nav-cta">GitHub →</a>
+    </div>
+  </div>
+</nav>
+
+<!-- Hero -->
+<section class="hero">
+  <div class="container">
+    <div class="hero-content">
+      <div class="hero-badge">
+        <span class="dot"></span>
+        v0.4.2 — production
+      </div>
+      <h1>
+        The AI that<br>
+        <span class="gradient">runs your company.</span>
+      </h1>
+      <p class="hero-sub">
+        Not a chatbot. Not an assistant. An autonomous runtime that boots, connects to your infrastructure, and <strong>operates it</strong> — 
+        delegating to AI executives, monitoring every product, optimizing its own code, and healing from failures. Continuously. Without you.
+      </p>
+      <div class="hero-actions">
+        <a href="https://github.com/Artifact-Virtual/singularity" class="btn btn-primary">
+          View on GitHub →
+        </a>
+        <a href="#architecture" class="btn btn-ghost">
+          How it works
+        </a>
+      </div>
+      <div class="hero-stats">
+        <div class="stat-item">
+          <div class="stat-value">31K</div>
+          <div class="stat-label">Lines of Code</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value">13</div>
+          <div class="stat-label">Subsystems</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value">28</div>
+          <div class="stat-label">Native Tools</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value">4</div>
+          <div class="stat-label">AI Executives</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Manifesto -->
+<section class="manifesto section">
+  <div class="container">
+    <p class="manifesto-text">
+      Traditional AI tools answer questions when you ask them.<br>
+      <strong>Singularity runs your entire organization while you sleep.</strong><br>
+      It spawns executives. It monitors products. It rewrites its own code.<br>
+      It heals from failures faster than entropy can accumulate.<br><br>
+      Nothing like this has been built before.
+    </p>
+  </div>
+</section>
+
+<!-- Comparison -->
+<section class="section">
+  <div class="container">
+    <h2 class="arch-title">A different category.</h2>
+    <p class="arch-sub">This isn't an incremental improvement. It's a new kind of system.</p>
+    <div class="comparison-grid">
+      <div class="comparison-col">
+        <div class="comparison-header">Traditional AI Tools</div>
+        <div class="comparison-item"><span class="comparison-icon">○</span> Responds when asked</div>
+        <div class="comparison-item"><span class="comparison-icon">○</span> Forgets between sessions</div>
+        <div class="comparison-item"><span class="comparison-icon">○</span> Single capability</div>
+        <div class="comparison-item"><span class="comparison-icon">○</span> Needs human orchestration</div>
+        <div class="comparison-item"><span class="comparison-icon">○</span> Static codebase</div>
+        <div class="comparison-item"><span class="comparison-icon">○</span> Fails silently</div>
+        <div class="comparison-item"><span class="comparison-icon">○</span> One model, one provider</div>
+        <div class="comparison-item"><span class="comparison-icon">○</span> Dashboard you have to check</div>
+      </div>
+      <div class="comparison-col">
+        <div class="comparison-header">Singularity</div>
+        <div class="comparison-item"><span class="comparison-icon">⚡</span> Acts autonomously 24/7</div>
+        <div class="comparison-item"><span class="comparison-icon">⚡</span> Lossless memory across restarts</div>
+        <div class="comparison-item"><span class="comparison-icon">⚡</span> 13 integrated subsystems</div>
+        <div class="comparison-item"><span class="comparison-icon">⚡</span> Self-orchestrating C-Suite delegation</div>
+        <div class="comparison-item"><span class="comparison-icon">⚡</span> Self-optimizing — rewrites its own code</div>
+        <div class="comparison-item"><span class="comparison-icon">⚡</span> Self-healing immune system</div>
+        <div class="comparison-item"><span class="comparison-icon">⚡</span> Provider chain with circuit breaker failover</div>
+        <div class="comparison-item"><span class="comparison-icon">⚡</span> Alerts you when something's wrong</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Architecture -->
+<section id="architecture" class="section" style="background: var(--bg-elevated);">
+  <div class="container">
+    <h2 class="arch-title">13 subsystems.<br>One runtime.</h2>
+    <p class="arch-sub">Every subsystem is purpose-built, independently recoverable, and integrated through an internal event bus.</p>
+    <div class="subsystem-grid">
+      <div class="subsystem-card">
+        <div class="subsystem-name">CORTEX</div>
+        <div class="subsystem-purpose">The Brain</div>
+        <div class="subsystem-desc">Agent loop, planning engine, tool orchestration. BLINK continuation ensures work survives budget boundaries.</div>
+      </div>
+      <div class="subsystem-card">
+        <div class="subsystem-name">CSUITE</div>
+        <div class="subsystem-purpose">Autonomous Executives</div>
+        <div class="subsystem-desc">CTO, COO, CFO, CISO — each with scoped tools, domain expertise, and budget enforcement. They work in parallel.</div>
+      </div>
+      <div class="subsystem-card">
+        <div class="subsystem-name">NEXUS</div>
+        <div class="subsystem-purpose">Self-Evolution Engine</div>
+        <div class="subsystem-desc">AST-based code analysis. Finds anti-patterns, generates fixes, hot-swaps live functions at runtime. The codebase improves every week.</div>
+      </div>
+      <div class="subsystem-card">
+        <div class="subsystem-name">IMMUNE</div>
+        <div class="subsystem-purpose">Self-Healing</div>
+        <div class="subsystem-desc">Watchdog monitors every subsystem. Detects degradation before failure. Auto-recovers. Heals faster than it degrades.</div>
+      </div>
+      <div class="subsystem-card">
+        <div class="subsystem-name">MEMORY</div>
+        <div class="subsystem-purpose">Lossless Persistence</div>
+        <div class="subsystem-desc">COMB stages state before shutdown, recalls on boot. HEKTOR provides hybrid BM25 + vector search across all knowledge.</div>
+      </div>
+      <div class="subsystem-card">
+        <div class="subsystem-name">POA</div>
+        <div class="subsystem-purpose">Product Monitoring</div>
+        <div class="subsystem-desc">Product Owner Agents watch every deployed product. Health checks, uptime tracking, alert escalation — all automated.</div>
+      </div>
+      <div class="subsystem-card">
+        <div class="subsystem-name">ATLAS</div>
+        <div class="subsystem-purpose">Enterprise Topology</div>
+        <div class="subsystem-desc">Real-time map of every module, machine, and service across your infrastructure. Auto-discovery with health tracking.</div>
+      </div>
+      <div class="subsystem-card">
+        <div class="subsystem-name">SINEW</div>
+        <div class="subsystem-purpose">28 Native Tools</div>
+        <div class="subsystem-desc">File ops, shell exec, web fetch, Discord, memory search, NEXUS, C-Suite dispatch, POA, ATLAS, release management.</div>
+      </div>
+      <div class="subsystem-card">
+        <div class="subsystem-name">VOICE</div>
+        <div class="subsystem-purpose">LLM Provider Chain</div>
+        <div class="subsystem-desc">Copilot → Ollama failover with circuit breaker. If one provider dies, the next takes over. Never goes silent.</div>
+      </div>
+      <div class="subsystem-card">
+        <div class="subsystem-name">PULSE</div>
+        <div class="subsystem-purpose">Scheduler</div>
+        <div class="subsystem-desc">Cron jobs, interval timers, iteration budgets. Drives POA audit cycles and NEXUS optimization sweeps.</div>
+      </div>
+      <div class="subsystem-card">
+        <div class="subsystem-name">NERVE</div>
+        <div class="subsystem-purpose">Communications</div>
+        <div class="subsystem-desc">Discord adapter + HTTP API. Message routing, DM support, channel management. The interface to the outside world.</div>
+      </div>
+      <div class="subsystem-card">
+        <div class="subsystem-name">AUDITOR</div>
+        <div class="subsystem-purpose">Operational Auditing</div>
+        <div class="subsystem-desc">Continuous release management, changelog generation, and operational compliance tracking. Nothing ships unaudited.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Capabilities -->
+<section id="capabilities" class="section">
+  <div class="container">
+    <h2 class="arch-title">What it actually does.</h2>
+    <p class="arch-sub">Not features. Capabilities. Each one is a system that runs autonomously.</p>
+    <div class="cap-grid">
+      <div class="cap-card">
+        <div class="cap-icon">🧠</div>
+        <div class="cap-title">C-Suite Delegation</div>
+        <div class="cap-desc">Spawns specialized AI executives — CTO for engineering, COO for operations, CFO for finance, CISO for security. Each has scoped tools and domain expertise. They work in parallel, arbitrate conflicts, and report back.</div>
+      </div>
+      <div class="cap-card">
+        <div class="cap-icon">🔄</div>
+        <div class="cap-title">Self-Optimization</div>
+        <div class="cap-desc">NEXUS scans Singularity's own codebase using AST analysis. Finds anti-patterns, dead code, silent exceptions. Generates fixes. Hot-swaps live functions at runtime without restart. Rollback if anything breaks.</div>
+      </div>
+      <div class="cap-card">
+        <div class="cap-icon">🛡️</div>
+        <div class="cap-title">Self-Healing</div>
+        <div class="cap-desc">The IMMUNE system monitors every subsystem with health state tracking. Detects degradation before failure. Auto-recovers crashed components. Escalates to humans only when necessary.</div>
+      </div>
+      <div class="cap-card">
+        <div class="cap-icon">📦</div>
+        <div class="cap-title">Product Monitoring</div>
+        <div class="cap-desc">Every shipped product gets a POA — a dedicated agent that runs health checks every 4 hours. Endpoint monitoring, SSL validation, uptime tracking. RED alerts hit your Discord in seconds.</div>
+      </div>
+      <div class="cap-card">
+        <div class="cap-icon">🧬</div>
+        <div class="cap-title">Lossless Memory</div>
+        <div class="cap-desc">COMB stages critical state before every shutdown and recalls it on boot. HEKTOR provides hybrid BM25 + vector search across all enterprise knowledge. The system literally cannot forget.</div>
+      </div>
+      <div class="cap-card">
+        <div class="cap-icon">🌐</div>
+        <div class="cap-title">Enterprise Topology</div>
+        <div class="cap-desc">ATLAS maps every module, machine, service, and connection across your infrastructure. Auto-discovers new services. Health checks every 5 minutes. Board-level reports on demand.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Quick Start -->
+<section id="quickstart" class="code-section section">
+  <div class="container">
+    <h2 class="arch-title">Up and running<br>in 60 seconds.</h2>
+    <p class="arch-sub">One install script. One config file. One command.</p>
+    <div class="terminal">
+      <div class="terminal-bar">
+        <div class="terminal-dot"></div>
+        <div class="terminal-dot"></div>
+        <div class="terminal-dot"></div>
+        <span class="terminal-title">singularity — bash</span>
+      </div>
+      <div class="terminal-body">
+        <span class="output"># Clone the repository</span><br>
+        <span class="prompt">$</span> <span class="highlight">git clone https://github.com/Artifact-Virtual/singularity.git</span><br>
+        <span class="prompt">$</span> <span class="highlight">cd singularity</span><br><br>
+        <span class="output"># One-command install</span><br>
+        <span class="prompt">$</span> <span class="highlight">./install.sh</span><br>
+        <span class="success">✅ Python 3.13 detected</span><br>
+        <span class="success">✅ Virtual environment created</span><br>
+        <span class="success">✅ Dependencies installed</span><br><br>
+        <span class="output"># Configure</span><br>
+        <span class="prompt">$</span> <span class="highlight">cp .env.example .env && nano .env</span><br><br>
+        <span class="output"># Launch</span><br>
+        <span class="prompt">$</span> <span class="highlight">python3 -m singularity</span><br>
+        <span class="success">⚡ SINGULARITY [AE] — Autonomous Enterprise Runtime</span><br>
+        <span class="success">✅ CORTEX online — agent loop active</span><br>
+        <span class="success">✅ CSUITE ready — CTO, COO, CFO, CISO</span><br>
+        <span class="success">✅ NEXUS armed — self-optimization enabled</span><br>
+        <span class="success">✅ IMMUNE watching — all subsystems healthy</span><br>
+        <span class="success">✅ NERVE connected — Discord + HTTP API</span><br>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Philosophy -->
+<section class="section">
+  <div class="container" style="text-align: center;">
+    <h2 class="arch-title" style="margin-bottom: 3rem;">Built on three truths.</h2>
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 2rem; text-align: left;">
+      <div style="padding: 2rem;">
+        <div style="font-family: var(--mono); font-size: 2rem; color: var(--primary); margin-bottom: 1rem;">0 = 0</div>
+        <div style="color: var(--text-dim); font-size: 0.95rem; line-height: 1.7;">Perfect equilibrium. The enterprise should run in balance. No debt accumulates. No entropy builds unchecked. Zero is the target state.</div>
+      </div>
+      <div style="padding: 2rem;">
+        <div style="font-family: var(--mono); font-size: 1.3rem; color: var(--primary); margin-bottom: 1rem;">Heal > Degrade</div>
+        <div style="color: var(--text-dim); font-size: 0.95rem; line-height: 1.7;">Everything breaks. The immune system recovers faster than entropy accumulates. Failure is movement. Stillness is death. The system heals itself.</div>
+      </div>
+      <div style="padding: 2rem;">
+        <div style="font-family: var(--mono); font-size: 1.3rem; color: var(--primary); margin-bottom: 1rem;">If it computes,<br>it will work.</div>
+        <div style="color: var(--text-dim); font-size: 0.95rem; line-height: 1.7;">Not hope. Not intention. Computation. Every decision is verifiable. Every process is auditable. Every failure is data.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section section">
+  <div class="container">
+    <h2>The enterprise<br>that runs <span class="text-primary">itself</span>.</h2>
+    <p>Open source. Production-tested. Ready to deploy.</p>
+    <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+      <a href="https://github.com/Artifact-Virtual/singularity" class="btn btn-primary" style="font-size: 1.1rem; padding: 1rem 2.5rem;">
+        View on GitHub →
+      </a>
+      <a href="https://github.com/Artifact-Virtual/singularity/blob/main/README.md" class="btn btn-ghost" style="font-size: 1.1rem; padding: 1rem 2.5rem;">
+        Read the docs
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer>
+  <div class="container">
+    <p style="margin-bottom: 0.5rem;">
+      <strong style="color: var(--text);">⚡ Singularity</strong> — The Autonomous Enterprise Runtime
+    </p>
+    <p>
+      Built by <a href="https://artifactvirtual.com">Artifact Virtual</a> · 2026
+    </p>
+  </div>
+</footer>
+
+</body>
+</html>
