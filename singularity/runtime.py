@@ -1703,8 +1703,8 @@ class Runtime:
                                     f"```"
                                 )
                                 adapter = self.adapters["discord"]
-                                # Forward to dispatch + security channels
-                                for ch_id in ("1478716096667189292", "1328051692167762034"):
+                                # Forward to security channel only — CISO handles #dispatch
+                                for ch_id in ("1328051692167762034",):  # security channel only
                                     await adapter.send(
                                         ch_id,
                                         OutboundMessage(content=msg)
@@ -1716,14 +1716,27 @@ class Runtime:
                                         f"SECURITY INCIDENT — ExfilGuard {severity} alert.\n"
                                         f"Type: {payload.get('type', 'unknown')}\n"
                                         f"Source IP: {payload.get('ip', 'unknown')}\n"
+                                        f"Port: {payload.get('port', 'unknown')}\n"
                                         f"rDNS: {payload.get('rdns', 'unknown')}\n"
+                                        f"Process: {payload.get('process', 'unknown')}\n"
+                                        f"Cmdline: {payload.get('cmdline', 'unknown')}\n"
+                                        f"Parent Process: {payload.get('parent_process', 'unknown')}\n"
+                                        f"User: {payload.get('user', 'unknown')}\n"
+                                        f"Local: {payload.get('local', 'unknown')}\n"
                                         f"Timestamp: {event.get('timestamp', 'unknown')}\n\n"
-                                        f"HUNT DIRECTIVE:\n"
-                                        f"1. Investigate this event — correlate with system logs, network activity, auth logs\n"
-                                        f"2. Determine if this is a genuine threat or false positive\n"
-                                        f"3. If genuine: identify scope, affected systems, recommend containment\n"
-                                        f"4. If false positive: document why and recommend detection tuning\n"
-                                        f"5. Report findings with confidence level and evidence"
+                                        f"INVESTIGATION PROTOCOL (use exec tool):\n"
+                                        f"1. Run `nmap -sV -sC {payload.get('ip', '')}` to fingerprint the remote host\n"
+                                        f"2. Run `curl -sI http://{payload.get('ip', '')}` and `curl -sI https://{payload.get('ip', '')}` to check HTTP services\n"
+                                        f"3. Run `whois {payload.get('ip', '')}` for registration data\n"
+                                        f"4. Check `ss -tunap | grep {payload.get('ip', '')}` for active connections\n"
+                                        f"5. Check ExfilGuard alert history: `grep '{payload.get('ip', '')}' /home/adam/workspace/poa/sentinel/logs/alerts.jsonl | tail -5`\n"
+                                        f"6. If process is 'http' — check if it's apt: `ls -la /usr/lib/apt/methods/http`\n"
+                                        f"7. Cross-reference with Kali mirror list if HTTP on port 80\n\n"
+                                        f"VERDICT REQUIRED:\n"
+                                        f"- FALSE POSITIVE or GENUINE THREAT (with confidence %)\n"
+                                        f"- If false positive: what whitelist entry should be added\n"
+                                        f"- If genuine: recommended containment actions\n"
+                                        f"- Keep it concise — 20 lines max for the verdict"
                                     )
                                     try:
                                         # CISO investigates IMMEDIATELY — not queued
@@ -1734,6 +1747,23 @@ class Runtime:
                                             context={"source": "exfilguard", "event": event},
                                         )
                                         logger.info(f"ExfilGuard: CISO investigation complete — status: {ciso_result.status}")
+                                        
+                                        # Post CISO verdict to #dispatch mentioning @Singularity
+                                        if ciso_result.status.value == "complete" and self.adapters.get("discord"):
+                                            # Build concise dispatch message
+                                            verdict_msg = (
+                                                f"🛡️ **CISO Security Report** — ExfilGuard {severity}\n"
+                                                f"**IP:** {payload.get('ip', '?')} | **rDNS:** {payload.get('rdns', '?')}\n"
+                                                f"**Process:** {payload.get('process', '?')}\n\n"
+                                                f"{ciso_result.response[:1800]}\n\n"
+                                                f"<@{self.config.get('discord_bot_id', '1478396689642688634')}>"  # @Singularity
+                                            )
+                                            dispatch_channel = "1478716096667189292"  # #dispatch
+                                            await self.adapters["discord"].send(
+                                                dispatch_channel,
+                                                OutboundMessage(content=verdict_msg)
+                                            )
+                                            logger.info("ExfilGuard: CISO verdict posted to #dispatch")
                                         
                                         # Feed findings back to ATLAS as a security issue
                                         if self.atlas:
