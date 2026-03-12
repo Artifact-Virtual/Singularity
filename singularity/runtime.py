@@ -1663,6 +1663,11 @@ class Runtime:
         event_dir = Path(self.workspace) / ".singularity" / "events" / "exfilguard"
         event_dir.mkdir(parents=True, exist_ok=True)
         
+        # Rate limit CISO dispatches: one investigation per IP per 5 minutes
+        # Prevents cascade when CISO fails (LLM down, scanner error → retry → flood)
+        _ciso_dispatch_times: dict[str, float] = {}  # IP → last dispatch timestamp
+        _CISO_COOLDOWN = 300  # 5 minutes between CISO dispatches for same IP
+        
         logger.info("ExfilGuard event relay started")
         
         while self._running:
@@ -1712,6 +1717,17 @@ class Runtime:
                                 
                                 # Auto-dispatch CISO for threat investigation
                                 if self.dispatcher:
+                                    # Rate limit: skip if we already dispatched CISO for this IP recently
+                                    import time as _time
+                                    _alert_ip = payload.get('ip', 'unknown')
+                                    _now = _time.time()
+                                    _last_dispatch = _ciso_dispatch_times.get(_alert_ip, 0)
+                                    if _now - _last_dispatch < _CISO_COOLDOWN:
+                                        logger.info(f"ExfilGuard: CISO dispatch rate-limited for {_alert_ip} (cooldown {_CISO_COOLDOWN}s)")
+                                        event_file.unlink()
+                                        continue
+                                    _ciso_dispatch_times[_alert_ip] = _now
+                                    
                                     # Run CISO Scanner Suite (targeted scan) FIRST
                                     scanner_evidence = ""
                                     try:
