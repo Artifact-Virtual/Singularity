@@ -18,6 +18,7 @@ from pathlib import Path
 
 import httpx
 from aiohttp import web
+from aiohttp.client_exceptions import ClientConnectionResetError
 
 COPILOT_API = "https://api.githubcopilot.com"
 GITHUB_API = "https://api.github.com"
@@ -233,8 +234,11 @@ class CopilotProxy:
                         )
                         return response
 
-                    async for line in resp.aiter_lines():
-                        await response.write(f"{line}\n".encode())
+                    try:
+                        async for line in resp.aiter_lines():
+                            await response.write(f"{line}\n".encode())
+                    except (ConnectionResetError, ConnectionError, BrokenPipeError, ClientConnectionResetError) as e:
+                        pass  # Client disconnected mid-stream — normal, not fatal
 
                 return response
             else:
