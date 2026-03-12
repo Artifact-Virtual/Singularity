@@ -1583,7 +1583,7 @@ class Runtime:
         async def on_llm_response(event):
             presence_manager.llm_streaming()
         
-                # C-Suite task completion → log and optionally report to channels
+                # C-Suite task completion → log and report to bridge
         @self.bus.on("csuite.task.completed")
         async def on_csuite_completed(event):
             data = event.data
@@ -1591,6 +1591,38 @@ class Runtime:
             status = data.get("status", "?")
             duration = data.get("duration_seconds", 0)
             logger.info(f"C-Suite task completed: {role} → {status} ({duration:.1f}s)")
+
+        # C-Suite dispatch completed → forward full results to #bridge + mention Singularity
+        @self.bus.on("csuite.dispatch.completed")
+        async def on_csuite_dispatch_completed(event):
+            data = event.data if hasattr(event, "data") else event
+            dispatch_id = data.get("dispatch_id", "?")[:8]
+            tasks = data.get("tasks", [])
+            
+            lines = [f"📋 **C-Suite Dispatch {dispatch_id} Complete**"]
+            for t in tasks:
+                role = t.get("role", "?").upper()
+                status = t.get("status", "?")
+                icon = "✅" if status in ("completed", "success") else "❌" if status == "failed" else "⏱️"
+                dur = t.get("duration_seconds", 0)
+                result_preview = str(t.get("result", ""))[:300]
+                lines.append(f"{icon} **{role}** ({dur:.0f}s) — {result_preview}")
+            
+            msg = "\n".join(lines)
+            logger.info(msg)
+            
+            # Post to #bridge channel
+            bridge_channel = "1478452753360748545"
+            if "discord" in self.adapters:
+                from .nerve.types import OutboundMessage
+                try:
+                    # Mention Singularity bot so the agent loop picks it up
+                    await self.adapters["discord"].send(
+                        bridge_channel,
+                        OutboundMessage(content=f"<@1478409279777013862>\n{msg}"),
+                    )
+                except Exception as e:
+                    logger.error(f"Dispatch result delivery failed: {e}")
         
         # C-Suite escalation → alert channel
         @self.bus.on("csuite.escalation.to_ava")
