@@ -807,7 +807,7 @@ class Runtime:
                         ATLAS_CHANNEL, OutboundMessage(content=msg)
                     )
                 except Exception as e:
-                    logger.debug(f"Suppressed ATLAS alert forwarding: {e}")
+                    logger.error(f"ATLAS alert forwarding FAILED: {e}")
 
             # Wire module discovery notifications
             @self.bus.on("atlas.module.discovered")
@@ -829,7 +829,7 @@ class Runtime:
                         OutboundMessage(content=f"**ATLAS: New module discovered** — `{mod_id}` ({mod_type}) on {machine}")
                     )
                 except Exception as e:
-                    logger.debug(f"Suppressed ATLAS discovery notification: {e}")
+                    logger.error(f"ATLAS discovery notification FAILED: {e}")
 
             # Wire tool executor
             if self.tools:
