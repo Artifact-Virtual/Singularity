@@ -31,6 +31,7 @@ Repository = "https://github.com/Artifact-Virtual/singularity"
 
 [project.scripts]
 singularity = "singularity.cli.main:main"
+singularity-install-service = "singularity.cli.wizard:run_wizard"
 
 [tool.setuptools.packages.find]
 include = ["singularity*"]

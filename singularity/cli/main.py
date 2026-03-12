@@ -208,10 +208,8 @@ def cmd_init(args):
 
     if not args.non_interactive:
         # Interactive wizard
-        from .wizard import InitWizard
-        wizard = InitWizard()
-        if not wizard.run():
-            sys.exit(1)
+        from .wizard import run_wizard
+        run_wizard()
         return
 
     # ── Non-interactive: scan → analyze → propose → write ──
