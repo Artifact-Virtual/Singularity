@@ -46,14 +46,14 @@ KNOWN_MODULES: dict[str, dict[str, Any]] = {
         "health": None,
         "deps": ["copilot-proxy", "discord-api", "hektor-daemon", "postgresql"],
     },
-    "mach6-gateway": {
+    "symbiote-gateway": {
         "type": ModuleType.AGENT,
-        "service": "mach6-gateway",
+        "service": "symbiote-gateway",
         "ports": [3006, 3009],
         "health": None,
         "config": "/opt/ava/mach6.json",
         "deps": ["copilot-proxy", "discord-api", "hektor-daemon"],
-        "aliases": ["ava", "symbiote", "mach6"],
+        "aliases": ["ava", "symbiote", "mach6", "symbiote-gateway"],
         "display_name": "Symbiote Gateway",
     },
     "aria": {
@@ -88,9 +88,9 @@ KNOWN_MODULES: dict[str, dict[str, Any]] = {
         "public_urls": ["comb.artifactvirtual.com", "comb-api.artifactvirtual.com"],
         "deps": [],
     },
-    "mach6-cloud": {
+    "symbiote-cloud": {
         "type": ModuleType.SERVICE,
-        "service": "mach6-cloud",
+        "service": "symbiote-cloud",
         "ports": [8430],
         "health": "http://localhost:8430/health",
         "public_urls": ["mach6.artifactvirtual.com", "mach6-api.artifactvirtual.com"],
@@ -729,7 +729,7 @@ class DiscoveryEngine:
         if "singularity" in cmd_lower and "runtime" in cmd_lower:
             return "singularity"
         if "/opt/ava/" in cmd_lower or "mach6.json" in cmd_lower:
-            return "mach6-gateway"
+            return "symbiote-gateway"
         if "/opt/aria/" in cmd_lower or "aria" in cmd_lower:
             return "aria"
         if "artifact-erp" in cmd_lower or "artifact_erp" in cmd_lower or "business_erp" in cmd_lower:

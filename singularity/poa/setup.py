@@ -492,7 +492,7 @@ class SetupFlow:
         
         # If the project name matches a known service pattern
         known_services = {
-            "mach6": "mach6-gateway", "symbiote": "mach6-gateway",
+            "mach6": "mach6-gateway", "symbiote": "mach6-gateway", "symbiote-gateway": "mach6-gateway",
             "singularity": "singularity",
             "nginx": "nginx",
         }
