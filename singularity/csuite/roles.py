@@ -710,7 +710,8 @@ def _get_match_roles() -> list[Role]:
                     keywords=defaults.get("keywords", []),
                 )
                 roles.append(role)
-            except (ValueError, KeyError):
+            except (ValueError, KeyError) as e:
+                logger.debug(f"Suppressed (ValueError, KeyError): {e}")
                 continue
         _CACHED_MATCH_ROLES = roles
     return _CACHED_MATCH_ROLES

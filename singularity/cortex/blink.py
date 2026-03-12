@@ -279,9 +279,8 @@ class BlinkController:
             try:
                 loop = asyncio.get_running_loop()
                 loop.create_task(self.bus.emit_nowait(topic, data, source="cortex"))
-            except RuntimeError:
-                # No running loop — can't emit, that's OK
-                pass
+            except RuntimeError as e:
+                logger.debug(f"Suppressed RuntimeError: {e}")
     
     def __repr__(self) -> str:
         return (

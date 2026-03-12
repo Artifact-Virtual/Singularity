@@ -175,8 +175,7 @@ def _fetch_bot_guilds(token: str) -> list[dict[str, Any]]:
                     for g in data
                 ]
     except urllib.error.HTTPError as e:
-        # 401 = bad token, 403 = missing scope — both mean we can't fetch
-        pass
+        logger.debug(f"Suppressed urllib.error.HTTPError: {e}")
     except Exception as e:
         logger.debug(f"Suppressed: {e}")
 

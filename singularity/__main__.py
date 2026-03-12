@@ -15,6 +15,8 @@ import logging
 from .bus import EventBus, Priority
 
 
+logger = logging.getLogger("singularity.__main__")
+
 async def test_skeleton():
     """Phase 1 gate test: verify all skeleton components work."""
     print("=" * 60)
@@ -804,8 +806,8 @@ async def test_skeleton():
         try:
             BaseAdapter("test")
             assert False, "Should not instantiate abstract class"
-        except TypeError:
-            pass  # Expected
+        except TypeError as e:
+            logger.debug(f"Suppressed TypeError: {e}")
         
         # Test concrete adapter subclass (mock)
         class MockAdapter(BaseAdapter):

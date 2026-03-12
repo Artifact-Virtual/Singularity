@@ -371,7 +371,8 @@ class Coordinator:
                     # Re-queue
                     await self._task_queue.put((task, role_type))
                     await asyncio.sleep(2)
-            except asyncio.TimeoutError:
+            except asyncio.TimeoutError as e:
+                logger.debug(f"Suppressed asyncio.TimeoutError: {e}")
                 continue
             except Exception as e:
                 logger.error(f"Queue processor error: {e}")

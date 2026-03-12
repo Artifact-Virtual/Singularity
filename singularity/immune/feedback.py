@@ -303,5 +303,5 @@ class FeedbackBridge:
         try:
             loop = asyncio.get_running_loop()
             loop.create_task(self.bus.emit(event_name, data))
-        except RuntimeError:
-            pass
+        except RuntimeError as e:
+            logger.debug(f"Suppressed RuntimeError: {e}")

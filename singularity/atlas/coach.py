@@ -434,7 +434,8 @@ class CoachEngine:
                 target = parts[1]
                 try:
                     pct = int(pct_str)
-                except ValueError:
+                except ValueError as e:
+                    logger.debug(f"Suppressed ValueError: {e}")
                     continue
 
                 if pct > THRESHOLDS["disk_crit_pct"]:

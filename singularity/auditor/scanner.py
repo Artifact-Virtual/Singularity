@@ -625,8 +625,8 @@ class WorkspaceScanner:
                     total += lines
                     count += 1
                     breakdown[ext] = breakdown.get(ext, 0) + lines
-                except (PermissionError, OSError):
-                    pass
+                except (PermissionError, OSError) as e:
+                    logger.debug(f"Suppressed (PermissionError, OSError): {e}")
         
         return total, count, breakdown
     

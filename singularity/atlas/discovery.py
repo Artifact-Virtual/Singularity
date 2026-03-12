@@ -408,7 +408,8 @@ class DiscoveryEngine:
                     pid = int(pid_s)
                     rss_mb = int(rss_s) / 1024
                     cpu_pct = float(cpu)
-                except (ValueError, IndexError):
+                except (ValueError, IndexError) as e:
+                    logger.debug(f"Suppressed (ValueError, IndexError): {e}")
                     continue
 
                 # Only track processes using >50MB
@@ -543,8 +544,8 @@ class DiscoveryEngine:
                         )
                         modules.append(mod)
                         break  # Only first node process = Scarlet
-                except json.JSONDecodeError:
-                    pass
+                except json.JSONDecodeError as e:
+                    logger.debug(f"Suppressed json.JSONDecodeError: {e}")
 
             # Check MT5
             mt5_result = await self._run(

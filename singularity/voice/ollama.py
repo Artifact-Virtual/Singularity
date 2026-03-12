@@ -102,7 +102,8 @@ class OllamaProvider(ChatProvider):
                     
                     try:
                         data = json.loads(text)
-                    except json.JSONDecodeError:
+                    except json.JSONDecodeError as e:
+                        logger.debug(f"Suppressed json.JSONDecodeError: {e}")
                         continue
                     
                     # Text content

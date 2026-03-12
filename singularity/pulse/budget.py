@@ -25,6 +25,9 @@ if TYPE_CHECKING:
 
 # ── Budget State ──────────────────────────────────────────────
 
+import logging
+logger = logging.getLogger("singularity.pulse.budget")
+
 class BudgetState(str, Enum):
     """Current budget health."""
     HEALTHY = "healthy"       # Plenty of iterations left
@@ -223,8 +226,8 @@ class IterationBudget:
             try:
                 loop = asyncio.get_running_loop()
                 loop.create_task(self.bus.emit(topic, data))
-            except RuntimeError:
-                pass  # No event loop — skip silently
+            except RuntimeError as e:
+                logger.debug(f"Suppressed RuntimeError: {e}")
     
     def __repr__(self) -> str:
         return (

@@ -360,7 +360,8 @@ class CopilotProxyProvider(ChatProvider):
                 
                 try:
                     parsed = json.loads(data)
-                except json.JSONDecodeError:
+                except json.JSONDecodeError as e:
+                    logger.debug(f"Suppressed json.JSONDecodeError: {e}")
                     continue
                 
                 for chunk in self._parse_sse_chunk(parsed):
