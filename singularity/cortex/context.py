@@ -76,7 +76,8 @@ class ContextAssembler:
             available_budget = max_history_tokens
         else:
             # Reserve space for system prompt (estimate) and response
-            sys_tokens = len(system_prompt) // 4 if system_prompt else 0
+            # Use conservative 3.2 chars/token to avoid exceeding model limits
+            sys_tokens = int(len(system_prompt) / 3.2) if system_prompt else 0
             available_budget = max(
                 0,
                 self.context_budget - sys_tokens - self.response_budget
@@ -121,8 +122,9 @@ class ContextAssembler:
         if not history:
             return []
         
-        # Estimate tokens (rough: 4 chars ≈ 1 token)
-        budget_chars = budget_tokens * 4
+        # Estimate tokens (conservative: 3.2 chars ≈ 1 token — accounts for
+        # tool call JSON, metadata, special tokens that inflate real token count)
+        budget_chars = int(budget_tokens * 3.2)
         
         # Calculate total size (including tool_calls metadata)
         total_chars = sum(self._estimate_message_chars(m) for m in history)
@@ -195,7 +197,7 @@ class ContextAssembler:
         if not history:
             return False
         
-        budget_chars = self.context_budget * 4  # rough token-to-char
+        budget_chars = int(self.context_budget * 3.2)  # conservative token estimate
         total_chars = sum(self._estimate_message_chars(m) for m in history)
         
         return total_chars > (budget_chars * threshold)
