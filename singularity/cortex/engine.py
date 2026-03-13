@@ -285,11 +285,43 @@ class CortexEngine:
                             "kept": keep_count,
                         }, source="cortex")
                 
+                # ── Conversational fast-path: cap iterations for chat messages ──
+                # When the user sends a short conversational message (greeting,
+                # question, chat), cap iterations to force a quick response.
+                # Full budget preserved for real work requests.
+                agent_config = self.config.agent
+                if blink.state.depth == 0:  # Only on first cycle, not blink resumes
+                    msg_text = (message or "").strip()
+                    msg_len = len(msg_text)
+                    # Short messages (< 100 chars) with no task indicators
+                    # get a tight iteration cap to prevent exploration binges
+                    _TASK_KEYWORDS = {
+                        'fix', 'build', 'create', 'deploy', 'audit', 'check',
+                        'investigate', 'analyze', 'write', 'implement', 'debug',
+                        'update', 'install', 'configure', 'search', 'find',
+                        'read', 'show', 'list', 'run', 'execute', 'restart',
+                        'commit', 'push', 'pull', 'delete', 'remove', 'add',
+                        'monitor', 'scan', 'test', 'review', 'dispatch',
+                    }
+                    msg_lower = msg_text.lower()
+                    has_task = any(kw in msg_lower for kw in _TASK_KEYWORDS)
+                    if msg_len < 100 and not has_task:
+                        from dataclasses import replace
+                        agent_config = replace(
+                            agent_config,
+                            max_iterations=3,
+                            expansion_threshold=99,  # Disable auto-expand
+                        )
+                        logger.info(
+                            f"Conversational fast-path: capping to 3 iterations "
+                            f"for message ({msg_len} chars): {msg_text[:50]!r}"
+                        )
+
                 # Spawn a fresh AgentLoop with blink awareness
                 loop = AgentLoop(
                     voice=self.voice,
                     tools=self.tools,
-                    config=self.config.agent,
+                    config=agent_config,
                     bus=self.bus,
                     blink=blink,
                 )
