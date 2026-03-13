@@ -294,7 +294,7 @@ class TopologyGraph:
 
     def get_active_modules(self) -> list[Module]:
         """All modules that are not GONE."""
-        return [m for m in self.modules.values() if m.status != ModuleStatus.GONE]
+        return [m for m in self.modules.values() if m is not None and m.status != ModuleStatus.GONE]
 
     def get_dependents(self, module_id: str) -> list[str]:
         """Who depends on this module?"""
@@ -310,7 +310,7 @@ class TopologyGraph:
         by_type = {}
         by_machine = {}
         for m in self.modules.values():
-            if m.status == ModuleStatus.GONE:
+            if m is None or m.status == ModuleStatus.GONE:
                 continue
             by_status[m.status.value] = by_status.get(m.status.value, 0) + 1
             by_type[m.type.value] = by_type.get(m.type.value, 0) + 1
@@ -330,7 +330,7 @@ class TopologyGraph:
             return
         try:
             state = {
-                "modules": {k: v.to_dict() for k, v in self.modules.items()},
+                "modules": {k: v.to_dict() for k, v in self.modules.items() if v is not None},
                 "edges": [e.to_dict() for e in self.edges],
                 "cycle_count": self.cycle_count,
                 "uptime": {
