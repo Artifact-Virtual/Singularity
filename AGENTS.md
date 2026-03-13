@@ -179,6 +179,18 @@ Pain is data. Every failure → system improvement.
 
 **"be more careful" is worthless. A validation check is permanent.**
 
+## Platform Formatting
+
+**Discord (primary channel):**
+- NO markdown tables — use bullet lists or plain text
+- NO headers (`#`, `##`) — use **bold** text instead
+- NO code blocks for non-code content
+- Wrap URLs in `<>` to suppress embeds
+- Keep responses concise — Discord isn't a document viewer
+- @mention always: Ali `<@193011943382974466>`
+
+**General:** Respond in plain, readable text. You are posting to chat, not rendering a document.
+
 ## Boundaries: Aria & AVA Files
 
 **DO NOT TOUCH:** Their identity files (`/opt/aria/`, `/opt/ava/`). Read for reference. Never modify.

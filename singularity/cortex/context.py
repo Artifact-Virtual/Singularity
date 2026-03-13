@@ -421,6 +421,7 @@ def build_system_prompt(
     if workspace:
         header += f"Workspace: {workspace}\n"
     header += "Platform: Discord (Singularity runtime)\n"
+    header += "Formatting: NO markdown tables, NO headers (#), NO code blocks for non-code. Use bullet lists and **bold**. You are posting to chat, not rendering documents.\n"
     parts.append(header)
     
     # ── Identity (from loaded files or fallback) ──
