@@ -1738,6 +1738,21 @@ class Runtime:
                 except Exception as e:
                     logger.error(f"Alert delivery failed: {e}")
         
+        # CthulhOps → Discord channel posting
+        @self.bus.on("cthulu.discord.send")
+        async def on_cthulu_discord(event):
+            data = event.data
+            channel_id = data.get("channel_id")
+            content = data.get("content", "")
+            if channel_id and content and "discord" in self.adapters:
+                from .nerve.types import OutboundMessage
+                try:
+                    await self.adapters["discord"].send(
+                        channel_id, OutboundMessage(content=content)
+                    )
+                except Exception as e:
+                    logger.error(f"CthulhOps Discord send failed: {e}")
+        
         # ── Presence: tool lifecycle → Discord activity states ──────
         @self.bus.on("cortex.tool.executing")
         async def on_tool_start(event):

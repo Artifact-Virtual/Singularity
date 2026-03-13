@@ -613,7 +613,17 @@ class CthulhOps:
         logger.info(f"Alert [{level}]: {message[:80]}")
 
     async def _post_discord_webhook(self, content: str) -> bool:
-        """Post a message to Discord via webhook URL."""
+        """Post a message to Discord via bus event (routed to Discord adapter)."""
+        if self.bus:
+            try:
+                await self.bus.emit("cthulu.discord.send", {
+                    "channel_id": CHANNEL_AVA,
+                    "content": content[:2000],
+                })
+                return True
+            except Exception as e:
+                logger.debug(f"Bus emit for Discord failed: {e}")
+        # Fallback: direct webhook (if available)
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.post(
@@ -623,10 +633,9 @@ class CthulhOps:
                 ) as resp:
                     if resp.status in (200, 204):
                         return True
-                    logger.warning(f"Discord webhook returned {resp.status}")
                     return False
         except Exception as e:
-            logger.error(f"Discord webhook failed: {e}")
+            logger.error(f"Discord post failed: {e}")
             return False
 
     # ── Self-Healing ─────────────────────────────────────────────
