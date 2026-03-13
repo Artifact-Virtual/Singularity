@@ -1,314 +1,478 @@
 <div align="center">
 
-# ⚡ SINGULARITY
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!--                        SINGULARITY [AE]                        -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
 
-### The Autonomous Enterprise Runtime
+```
+███████╗██╗███╗   ██╗ ██████╗ ██╗   ██╗██╗      █████╗ ██████╗ ██╗████████╗██╗   ██╗
+██╔════╝██║████╗  ██║██╔════╝ ██║   ██║██║     ██╔══██╗██╔══██╗██║╚══██╔══╝╚██╗ ██╔╝
+███████╗██║██╔██╗ ██║██║  ███╗██║   ██║██║     ███████║██████╔╝██║   ██║    ╚████╔╝
+╚════██║██║██║╚██╗██║██║   ██║██║   ██║██║     ██╔══██║██╔══██╗██║   ██║     ╚██╔╝
+███████║██║██║ ╚████║╚██████╔╝╚██████╔╝███████╗██║  ██║██║  ██║██║   ██║      ██║
+╚══════╝╚═╝╚═╝  ╚═══╝ ╚═════╝  ╚═════╝ ╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝   ╚═╝      ╚═╝
+```
 
-**Self-healing. Self-optimizing. Self-evolving.**
+### **Autonomous Enterprise Runtime**
 
-An AI runtime that doesn't just respond to commands — it runs your entire organization autonomously. It monitors every product, delegates to specialized executives, optimizes its own codebase, heals from failures, and improves permanently with every cycle.
+*The enterprise that runs itself.*
 
-Nothing like this has been built before.
+<br>
 
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)](https://python.org)
-[![Lines of Code](https://img.shields.io/badge/lines-31%2C261-blue?style=flat-square)](.)
-[![Subsystems](https://img.shields.io/badge/subsystems-13-blue?style=flat-square)](.)
-[![Tools](https://img.shields.io/badge/tools-28-blue?style=flat-square)](.)
-[![License](https://img.shields.io/badge/license-proprietary-red?style=flat-square)](LICENSE)
-[![Built by](https://img.shields.io/badge/built%20by-Artifact%20Virtual-7c6aff?style=flat-square)](https://artifactvirtual.com)
+![Version](https://img.shields.io/badge/v0.7.0-4B0082?style=for-the-badge&label=VERSION&labelColor=0D1117&logo=git&logoColor=white)
+![Python](https://img.shields.io/badge/3.11+-3776AB?style=for-the-badge&label=PYTHON&labelColor=0D1117&logo=python&logoColor=white)
+![License](https://img.shields.io/badge/AGPL--3.0-green?style=for-the-badge&label=LICENSE&labelColor=0D1117&logo=gnu&logoColor=white)
+![Lines](https://img.shields.io/badge/32K+-FF6B35?style=for-the-badge&label=LINES&labelColor=0D1117&logo=codacy&logoColor=white)
+![Subsystems](https://img.shields.io/badge/13-00D4AA?style=for-the-badge&label=SUBSYSTEMS&labelColor=0D1117&logo=stackblitz&logoColor=white)
+![Tools](https://img.shields.io/badge/28-E91E63?style=for-the-badge&label=TOOLS&labelColor=0D1117&logo=apachespark&logoColor=white)
+
+<br>
+
+[![GitHub](https://img.shields.io/badge/GitHub-0D1117?style=flat-square&logo=github&logoColor=white)](https://github.com/Artifact-Virtual/Singularity)
+[![Docs](https://img.shields.io/badge/Documentation-0D1117?style=flat-square&logo=gitbook&logoColor=white)](https://github.com/Artifact-Virtual/Singularity/tree/main/docs)
+[![Releases](https://img.shields.io/badge/Releases-0D1117?style=flat-square&logo=semanticrelease&logoColor=white)](https://github.com/Artifact-Virtual/Singularity/releases)
+[![Artifact Virtual](https://img.shields.io/badge/Artifact_Virtual-0D1117?style=flat-square&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCI+PHRleHQgeD0iNCIgeT0iMTgiIGZvbnQtc2l6ZT0iMTYiPuKaqTwvdGV4dD48L3N2Zz4=)](https://artifactvirtual.com)
 
 ---
-
-*83 files. 13 subsystems. 28 tools. 4 autonomous executives.*
-*One runtime that replaces your entire ops team.*
 
 </div>
 
----
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!--                         WHAT IS THIS                           -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
 
-## What Is This?
+## ⚡ What Is Singularity?
 
-Singularity is an **autonomous enterprise runtime** — a system that boots, connects to your infrastructure, and then *runs it*. Not assists. Not suggests. **Runs.**
+Singularity is a **fully autonomous enterprise operating system** — not a chatbot, not an assistant, not a copilot. It is a self-healing, self-optimizing runtime that audits, delegates, monitors, and evolves without human intervention.
 
-It spawns AI executives (CTO, COO, CFO, CISO) that perform domain-specific work. It deploys Product Owner Agents that monitor every shipped product around the clock. It rewrites its own source code to eliminate anti-patterns. It heals from failures faster than entropy can accumulate.
-
-Traditional AI tools answer questions. Singularity **runs organizations**.
-
-### What makes it different:
-
-| Traditional AI | Singularity |
-|---|---|
-| Responds when asked | Acts autonomously 24/7 |
-| Forgets between sessions | Lossless memory across restarts (COMB) |
-| Single capability | 13 integrated subsystems |
-| Needs human orchestration | Self-orchestrating with C-Suite delegation |
-| Static codebase | Self-optimizing — rewrites its own code (NEXUS) |
-| Fails silently | Self-healing immune system with auto-recovery |
-| One model, one provider | Provider chain with circuit breaker failover |
-| Dashboard you check | Alerts you when something's wrong |
-
----
-
-## Architecture
+It manages everything from code quality to infrastructure health to financial tracking — across organizations from 1 person to 30,000.
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                        SINGULARITY [AE]                         │
-│                  Autonomous Enterprise Runtime                  │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐          │
-│  │   CTO   │  │   COO   │  │   CFO   │  │  CISO   │  C-SUITE │
-│  │ eng/ops │  │ process │  │ finance │  │security │          │
-│  └────┬────┘  └────┬────┘  └────┬────┘  └────┬────┘          │
-│       └─────────┬──┴──────────┬─┴─────────────┘               │
-│                 │  CORTEX     │                                 │
-│                 │  (Brain)    │                                 │
-│       ┌─────────┴─────────────┴──────────┐                     │
-│       │    Agent Loop + Planner + BLINK   │                     │
-│       └──┬──────┬──────┬──────┬──────┬───┘                     │
-│          │      │      │      │      │                          │
-│   ┌──────┴┐ ┌──┴───┐ ┌┴─────┐│ ┌────┴──┐ ┌──────┐            │
-│   │ SINEW │ │VOICE │ │MEMORY││ │ NEXUS │ │PULSE │            │
-│   │28tools│ │ LLM  │ │ COMB ││ │evolve │ │ cron │            │
-│   └───────┘ └──────┘ └──────┘│ └───────┘ └──────┘            │
-│                               │                                │
-│   ┌───────┐ ┌──────┐ ┌──────┴┐ ┌───────┐ ┌──────┐            │
-│   │ ATLAS │ │ POA  │ │IMMUNE │ │NERVE  │ │AUDIT │            │
-│   │topology│ │watch │ │ heal  │ │Discord│ │ ops  │            │
-│   └───────┘ └──────┘ └───────┘ │+ HTTP │ └──────┘            │
-│                                 └───────┘                      │
-└─────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                         SINGULARITY [AE]                            │
+│                   Autonomous Enterprise Runtime                     │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│   ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐              │
+│   │ CORTEX  │  │  VOICE  │  │  NERVE  │  │ MEMORY  │              │
+│   │  Brain  │──│   LLM   │  │  Comms  │  │  COMB   │              │
+│   └────┬────┘  └─────────┘  └────┬────┘  └────┬────┘              │
+│        │                         │             │                    │
+│   ┌────┴────────────────────────┴─────────────┴────┐               │
+│   │              EVENT BUS (async pub/sub)          │               │
+│   └────┬──────┬──────┬──────┬──────┬──────┬────────┘               │
+│        │      │      │      │      │      │                        │
+│   ┌────┴──┐┌──┴───┐┌─┴──┐┌─┴───┐┌─┴───┐┌─┴─────┐                 │
+│   │C-Suite││ NEXUS ││POA ││PULSE││ATLAS││IMMUNE │                 │
+│   │Agents ││Evolve ││Mon ││Sched││Topo ││Health │                 │
+│   └───────┘└──────┘└────┘└─────┘└─────┘└───────┘                 │
+│                                                                     │
+│   ┌──────────────────────────────────────────────┐                  │
+│   │  SINEW (28 Tools) │ AUDITOR │ SENTINEL │ VDB │                  │
+│   └──────────────────────────────────────────────┘                  │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
-### The 13 Subsystems
+<br>
 
-| Subsystem | Purpose | What it actually does |
-|-----------|---------|---------------------|
-| **CORTEX** | Brain | Agent loop, planning, tool orchestration, BLINK continuation across budget boundaries |
-| **SINEW** | Tools | 28 native tools — exec, file ops, web, Discord, memory, NEXUS, C-Suite, POA, ATLAS, release management |
-| **VOICE** | LLM | Provider chain (Copilot → Ollama) with circuit breaker failover. Never goes silent. |
-| **MEMORY** | Persistence | COMB — lossless memory staging/recall across restarts. The system never forgets. |
-| **CSUITE** | Delegation | 4 autonomous executives (CTO/COO/CFO/CISO) with scoped tools and domain expertise |
-| **NEXUS** | Evolution | AST-based self-optimization. Scans its own codebase, finds anti-patterns, hot-swaps fixes at runtime. |
-| **PULSE** | Scheduling | Cron jobs, interval timers, iteration budgets, POA audit scheduling |
-| **POA** | Products | Product Owner Agents — continuous health checks, uptime monitoring, alert escalation |
-| **IMMUNE** | Self-healing | Subsystem watchdog, degradation detection, automatic recovery. Heals faster than it degrades. |
-| **NERVE** | Communications | Discord adapter + HTTP API. Message routing, DM support, channel management. |
-| **ATLAS** | Topology | Enterprise-wide module discovery, health tracking, board reports across all machines |
-| **AUDITOR** | Operations | Continuous operational auditing, release management, changelog generation |
-| **CLI** | Interface | Command-line tools for setup, diagnostics, and management |
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!--                      KEY CAPABILITIES                          -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
 
----
+## 🧠 Key Capabilities
 
-## Key Capabilities
+<table>
+<tr>
+<td width="50%">
 
-### 🧠 C-Suite Delegation
-Singularity doesn't do everything itself. It delegates to specialized AI executives:
+### 🤖 Autonomous Agent Loop
+CORTEX runs a planning → execution → reflection loop with 28 native tools. No human in the loop required. Budget-aware, self-continuing via BLINK.
 
-- **CTO** — Engineering, infrastructure, deployments, code review
-- **COO** — Operations, process optimization, compliance, workflows
-- **CFO** — Finance, budgets, pricing, revenue analysis
-- **CISO** — Security audits, vulnerability scanning, risk assessment
+</td>
+<td width="50%">
 
-Each executive has scoped tool access, domain-specific system prompts, and budget enforcement. They work in parallel. Contradictory recommendations get arbitrated automatically.
+### 👔 C-Suite Delegation
+Dispatch tasks to specialized executives — **CTO**, **COO**, **CFO**, **CISO** — each with scoped tools and domain expertise. Fan-out to all or direct-route to one.
 
-### 🔄 Self-Optimization (NEXUS)
-Singularity rewrites its own source code:
+</td>
+</tr>
+<tr>
+<td width="50%">
 
-- **Audit** — AST analysis of its own codebase for complexity, anti-patterns, dead code
-- **Evolve** — Finds safe mechanical transformations (silent exceptions → logging, bare excepts → typed)
-- **Hot-Swap** — Replaces live functions at runtime without restart
-- **Rollback** — Instant revert if a swap causes issues
+### 🔬 Self-Optimization (NEXUS)
+AST-level codebase analysis. Detects anti-patterns (silent exceptions, bare excepts, missing loggers). Auto-evolves safe fixes. Hot-swaps live functions with rollback.
 
-The codebase gets better every week. Automatically.
+</td>
+<td width="50%">
 
-### 🛡️ Self-Healing (IMMUNE)
-Every subsystem is monitored by the immune system:
+### 📡 Product Monitoring (POA)
+Every shipped product gets a Product Owner Agent. Health checks, SSL validation, uptime tracking, alert escalation — all on a 4-hour cycle via PULSE.
 
-- Watchdog detects degradation before failure
-- Auto-recovery restarts failed components
-- Health state tracked per-subsystem with timestamps
-- Escalation to Discord when human intervention is needed
+</td>
+</tr>
+<tr>
+<td width="50%">
 
-### 📦 Product Monitoring (POA)
-Every shipped product gets a Product Owner Agent:
+### 🧬 Self-Healing (IMMUNE)
+Subsystem watchdog detects degradation and auto-recovers. If a component fails, IMMUNE restarts it before anyone notices. Heal faster than you degrade.
 
-- Endpoint health checks (HTTP, SSL, ports)
-- Uptime tracking with historical data
-- Alert escalation (RED/YELLOW → Discord)
-- Scheduled audits every 4 hours via PULSE
+</td>
+<td width="50%">
 
-### 🧬 Lossless Memory (COMB)
-The system wakes up blank every session. COMB fixes that:
+### 🔍 Enterprise Memory (VDB)
+Native BM25 + TF-IDF hybrid search engine. Zero dependencies, sub-millisecond latency. Indexes conversations, identity files, operational state. Persistent across restarts.
 
-- **Stage** — Save critical state before shutdown
-- **Recall** — Load full operational context on boot
-- **Search** — HEKTOR hybrid search (BM25 + vector) across all enterprise knowledge
+</td>
+</tr>
+<tr>
+<td width="50%">
 
-Nothing is forgotten. Ever.
+### 🗺️ Topology Mapping (ATLAS)
+Auto-discovers every service, daemon, and module across the infrastructure. Tracks health, edges, and dependencies. Generates enterprise-wide board reports.
 
-### 🌐 Enterprise Topology (ATLAS)
-Real-time map of every module, machine, and service:
+</td>
+<td width="50%">
 
-- Auto-discovery of services across infrastructure
-- Health checks every 5 minutes
-- Board reports with severity classification
-- Module visibility controls for confidential systems
+### 🛡️ Security (Sentinel)
+Real-time network monitoring. ExfilGuard detects data exfiltration. Credential Guard prevents secret leaks in commands. CISO auto-dispatched on HIGH alerts.
 
----
+</td>
+</tr>
+</table>
 
-## Quick Start
+<br>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!--                       13 SUBSYSTEMS                            -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+
+## ⚙️ 13 Subsystems
+
+| Subsystem | Role | Description |
+|:---------:|:-----|:------------|
+| **CORTEX** | 🧠 Brain | Agent loop, planner, tool orchestration, BLINK continuation |
+| **SINEW** | 🦴 Tools | 28 native tools — core, comms, memory, NEXUS, C-Suite, POA, ATLAS, releases |
+| **VOICE** | 🗣️ LLM | Provider chain with circuit-breaker fallback (Copilot → Ollama) |
+| **MEMORY** | 💾 Persistence | COMB lossless memory + VDB hybrid search + session context |
+| **CSUITE** | 👔 Command | CTO, COO, CFO, CISO executives — scoped tools, auto-dispatch |
+| **NEXUS** | 🧬 Evolution | Self-optimization — AST analysis, hot-swap, evolution engine |
+| **PULSE** | ⏱️ Scheduler | Cron jobs, interval timers, iteration budgets, POA scheduling |
+| **POA** | 📡 Products | Product Owner Agents — health checks, uptime, alert escalation |
+| **IMMUNE** | 🛡️ Health | Subsystem watchdog, degradation detection, auto-recovery |
+| **NERVE** | 📡 Comms | Discord adapter, HTTP API (:8450), message routing |
+| **ATLAS** | 🗺️ Topology | Enterprise-wide module discovery, health tracking, board reports |
+| **AUDITOR** | 📋 Ops | Continuous auditing, release management, changelog generation |
+| **CLI** | ⌨️ Interface | One-command install, setup wizard, diagnostics |
+
+<br>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!--                         28 TOOLS                               -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+
+## 🔧 28 Native Tools
+
+```
+CORE            COMMS              MEMORY             NEXUS
+─────────       ──────────         ──────────         ──────────────
+exec            discord_send       comb_stage         nexus_audit
+read            discord_react      comb_recall        nexus_status
+write                              memory_recall      nexus_swap
+edit                               memory_ingest      nexus_rollback
+web_fetch                          memory_stats       nexus_evolve
+
+DELEGATION      PRODUCTS           TOPOLOGY           RELEASES
+──────────      ──────────         ──────────         ──────────────
+csuite_dispatch poa_setup          atlas_status       release_scan
+                poa_manage         atlas_topology     release_status
+                                   atlas_module       release_confirm
+                                   atlas_report       release_ship
+                                   atlas_visibility   release_reject
+```
+
+<br>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!--                       QUICK START                              -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+
+## 🚀 Quick Start
 
 ```bash
 # Clone
-git clone https://github.com/Artifact-Virtual/singularity.git
-cd singularity
+git clone https://github.com/Artifact-Virtual/Singularity.git
+cd Singularity
 
-# Install (one command)
-./install.sh
+# Install + setup wizard
+pip install -e .
+singularity setup
 
-# Configure
-cp .env.example .env
-# Edit .env with your API keys and Discord token
-
-# Run setup wizard
-python3 wizard.py
-
-# Start
-python3 -m singularity
+# Run
+singularity run
 ```
 
-### Requirements
+The setup wizard configures:
+- ⚡ LLM provider (Copilot proxy, Ollama, or HuggingFace)
+- 💾 COMB persistence (memory across restarts)
+- 🛡️ Sentinel security daemon
+- 📡 Discord bot connection
+- ⚙️ systemd service (optional)
 
-- Python 3.11+
-- Discord bot token (for communications)
-- LLM provider (GitHub Copilot API or local Ollama)
-- Linux recommended (systemd integration)
+> **Requires:** Python 3.11+, a Discord bot token, and an LLM provider.
 
-### Configuration
+<br>
 
-Copy `.env.example` and configure:
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!--                     HOW IT WORKS                               -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
 
-```env
-DISCORD_TOKEN=your_bot_token
-COPILOT_API_KEY=your_api_key
-SINGULARITY_API_KEY=your_api_key
-GITHUB_TOKEN=your_github_token
+## 🔄 How It Works
+
+```
+           ┌──────────────────────────────────┐
+           │         INCOMING MESSAGE          │
+           │   (Discord / HTTP API / PULSE)    │
+           └──────────────┬───────────────────┘
+                          │
+                          ▼
+           ┌──────────────────────────────────┐
+           │           CORTEX LOOP             │
+           │                                   │
+           │   1. Recall memory (COMB + VDB)   │
+           │   2. Plan (LLM reasoning)         │
+           │   3. Execute tools (SINEW)        │
+           │   4. Reflect on results           │
+           │   5. Continue or respond           │
+           │                                   │
+           │   Budget: N iterations per task    │
+           │   BLINK: auto-extend if needed     │
+           └──────────────┬───────────────────┘
+                          │
+              ┌───────────┼───────────┐
+              ▼           ▼           ▼
+        ┌──────────┐ ┌────────┐ ┌──────────┐
+        │ C-Suite  │ │ Direct │ │  Stage   │
+        │ Dispatch │ │ Action │ │  Memory  │
+        └──────────┘ └────────┘ └──────────┘
 ```
 
-See `.env.example` for all available configuration options.
+**The agent loop is the heartbeat.** Every message, every scheduled task, every health check goes through CORTEX. It decides whether to act directly, delegate to an executive, or stage context for the next session.
 
----
+<br>
 
-## How It Works
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!--                  DESIGN PHILOSOPHY                             -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
 
-### Boot Sequence
-Singularity boots in phases with dependency gating — no phase starts until its dependencies resolve:
+## 💎 Design Philosophy
 
-1. **Core Validation** — Verify `.core/` integrity
-2. **Event Bus** — Internal pub/sub messaging
-3. **Memory** — COMB recall, session context
-4. **Tools** — Register all 28 native tools
-5. **Voice** — Connect LLM provider chain
-6. **Brain** — Initialize agent loop + planner
-7. **C-Suite** — Spawn executive agents
-8. **NEXUS** — Self-optimization engine
-9. **Scheduler** — PULSE cron + timers
-10. **Products** — POA health monitoring
-11. **Immune** — Watchdog + auto-recovery
-12. **Communications** — Discord + HTTP API
-
-### The Agent Loop
 ```
-Message → Cortex → Plan → Tool Calls → Results → Plan → ... → Response
-                     ↑                                    |
-                     └────── BLINK (budget continuation) ──┘
+ ╔═══════════════════════════════════════════════════════════════╗
+ ║                    THE BRUTALIST MANDATE                      ║
+ ╠═══════════════════════════════════════════════════════════════╣
+ ║                                                               ║
+ ║   Execute, don't narrate.     │  Value is in outcomes.        ║
+ ║   Heal faster than you degrade│  Failure is movement.         ║
+ ║   Gate pattern always.        │  No phase without deps.       ║
+ ║   Memory is not optional.     │  Forgetting is the failure.   ║
+ ║   Minimal by default.         │  Scale from signals.          ║
+ ║   Self-improvement is the point│ Hit a wall → build a system. ║
+ ║                                                               ║
+ ╚═══════════════════════════════════════════════════════════════╝
 ```
 
-When budget runs low, BLINK automatically saves state and continues in the next cycle. Work never gets lost.
+**Three inherited principles:**
 
-### The Gate Pattern
-Every phase, every dispatch, every evolution follows the gate pattern:
+> **0 = 0** — Perfect equilibrium. The enterprise runs in balance.
 
-> No phase starts until dependencies resolve. Linear progression with branching dependency trees — branches resolve before the trunk advances.
+> **Two-Point Theorem** — Intelligence is two sequential observations → direction.
 
-This is why Singularity doesn't crash. It can't advance past a broken dependency.
+> **Breadcrumbs not sticks** — Growth requires patience, not pressure.
 
----
+<br>
 
-## Project Structure
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!--                     SELF-OPTIMIZATION                          -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+
+## 🧬 Self-Optimization (NEXUS)
+
+Singularity improves its own codebase. Continuously.
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    NEXUS ENGINE                          │
+├─────────────────────────────────────────────────────────┤
+│                                                          │
+│   AUDIT  ──►  Scan codebase for anti-patterns            │
+│               (silent exceptions, bare excepts,          │
+│                missing loggers, dead code)                │
+│                                                          │
+│   EVOLVE ──►  Validate fixes via AST parsing             │
+│               Auto-apply safe transformations             │
+│               Persist to disk + hot-swap live             │
+│                                                          │
+│   SWAP   ──►  Replace running functions at runtime       │
+│               Full rollback capability                    │
+│               Zero-downtime upgrades                      │
+│                                                          │
+│   ⛔ NEXUS cannot modify itself (hard boundary)          │
+│                                                          │
+└─────────────────────────────────────────────────────────┘
+```
+
+<br>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!--                      MEMORY ENGINE                             -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+
+## 💾 Memory Architecture
+
+Singularity wakes up blank every session. Memory is engineered, not assumed.
+
+| Layer | System | Persistence | Use Case |
+|:-----:|:------:|:-----------:|:---------|
+| **L1** | Context Window | Session | Current conversation |
+| **L2** | COMB | Permanent | Lossless session-to-session state |
+| **L3** | VDB | Permanent | Hybrid search across all enterprise knowledge |
+| **L4** | Sessions | Permanent | Full conversation history |
+
+**VDB** is a native BM25 + TF-IDF hybrid search engine:
+- Zero external dependencies — no cloud APIs, no GPU, no embeddings
+- Sub-millisecond search latency
+- Deterministic, explainable results
+- Auto-indexes Discord, chat, identity files, COMB entries
+
+<br>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!--                     C-SUITE                                    -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+
+## 👔 C-Suite Executives
+
+```
+                    ┌────────────────────┐
+                    │    SINGULARITY     │
+                    │    (Coordinator)    │
+                    └────────┬───────────┘
+                             │
+              ┌──────────────┼──────────────┐
+              │              │              │              │
+         ┌────┴────┐   ┌────┴────┐   ┌────┴────┐   ┌────┴────┐
+         │   CTO   │   │   COO   │   │   CFO   │   │  CISO   │
+         │  Engin. │   │  Ops    │   │ Finance │   │Security │
+         └─────────┘   └─────────┘   └─────────┘   └─────────┘
+              │              │              │              │
+         Code review    Process      Budget         Vuln scan
+         Deploys        Compliance   Pricing        Risk audit
+         Infra          Workflows    Revenue        Pen testing
+         Architecture   HR           Forecasting    GRC
+```
+
+Dispatch with `csuite_dispatch`. Route to `auto` (keyword-match), `all` (fan-out), or a specific role. Each executive gets scoped tools and domain context. They execute independently and report back.
+
+<br>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!--                     DOCUMENTATION                              -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+
+## 📚 Documentation
+
+| Document | Description |
+|:---------|:------------|
+| [Overview](docs/overview.md) | High-level system overview |
+| [Architecture](docs/architecture.md) | System design and subsystem boundaries |
+| [Getting Started](docs/getting-started.md) | Installation and first run |
+| [Configuration](docs/configuration.md) | Environment variables and YAML config |
+| [API Reference](docs/api.md) | HTTP API endpoints and payloads |
+| [Tools Reference](docs/tools-reference.md) | All 28 native tools |
+| [C-Suite](docs/csuite.md) | Executive delegation framework |
+| [POA](docs/poa.md) | Product Owner Agents |
+| [NEXUS](docs/nexus.md) | Self-optimization engine |
+| [Memory & COMB](docs/memory.md) | Persistence and memory systems |
+| [VDB](docs/vdb.md) | Native hybrid search engine |
+| [Security](docs/security.md) | Sentinel, ExfilGuard, safety boundaries |
+| [Deployment](docs/deployment.md) | Production setup and hardening |
+| [Infrastructure](docs/infrastructure.md) | Servers, services, networking |
+| [Contributing](docs/contributing.md) | Development workflow and standards |
+| [Changelog](docs/changelog.md) | Version history |
+
+<br>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!--                     PROJECT STRUCTURE                          -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+
+## 📁 Project Structure
 
 ```
 singularity/
-├── atlas/          # Enterprise topology + health tracking
-├── auditor/        # Operational auditing + release management
-├── cli/            # Command-line interface
-├── cortex/         # Agent loop + planner + BLINK
-├── csuite/         # C-Suite executives (CTO/COO/CFO/CISO)
-├── immune/         # Self-healing watchdog
-├── memory/         # COMB persistence + HEKTOR search
-├── nerve/          # Discord adapter + HTTP API
-├── nexus/          # Self-optimization engine
-├── poa/            # Product Owner Agents
-├── pulse/          # Scheduler (cron + timers)
-├── sinew/          # 28 native tools
-├── voice/          # LLM provider chain
-├── .core/          # Boot integrity checks
-├── install.sh      # One-command setup
-├── wizard.py       # Interactive configuration
-└── .env.example    # Configuration template
+├── cortex/          # 🧠 Agent brain — engine, planner, BLINK
+├── voice/           # 🗣️ LLM providers — Copilot, Ollama, HuggingFace
+├── nerve/           # 📡 Discord adapter, HTTP API
+├── memory/          # 💾 COMB, VDB, session management
+├── csuite/          # 👔 Executive agents — CTO, COO, CFO, CISO
+├── nexus/           # 🧬 Self-optimization — AST, hot-swap, evolution
+├── pulse/           # ⏱️ Scheduler — cron, intervals, budgets
+├── immune/          # 🛡️ Self-healing watchdog
+├── sinew/           # 🦴 Tool definitions and execution
+├── atlas/           # 🗺️ Topology discovery and tracking
+├── auditor/         # 📋 Release management, ops auditing
+├── config/          # ⚙️ Configuration loading
+├── cli/             # ⌨️ Setup wizard, diagnostics
+└── poa/             # 📡 Product Owner Agents, release pipeline
 ```
 
----
+<br>
 
-## The 28 Tools
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!--                        LINEAGE                                 -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
 
-| Category | Tools |
-|----------|-------|
-| **Core** | `exec` `read` `write` `edit` `web_fetch` |
-| **Communication** | `discord_send` `discord_react` |
-| **Memory** | `comb_stage` `comb_recall` `memory_search` |
-| **Self-Optimization** | `nexus_audit` `nexus_status` `nexus_swap` `nexus_rollback` `nexus_evolve` |
-| **Delegation** | `csuite_dispatch` |
-| **Products** | `poa_setup` `poa_manage` |
-| **Topology** | `atlas_status` `atlas_topology` `atlas_module` `atlas_report` `atlas_visibility` |
-| **Releases** | `release_scan` `release_status` `release_confirm` `release_ship` `release_reject` |
-
----
-
-## Philosophy
-
-Built on three principles inherited from its creators:
-
-**0 = 0.** Perfect equilibrium. The enterprise should run in balance.
-
-**Heal faster than you degrade.** Everything breaks. The immune system recovers faster than entropy accumulates. Failure is movement. Stillness is death.
-
-**If it computes, it will work.** Not hope. Not intention. Computation.
-
----
-
-## Who Built This
-
-**Singularity** is the core infrastructure of [Artifact Virtual](https://artifactvirtual.com) — built by Ali Shakil (CEO) and AVA (autonomous AI architect).
-
-It manages the entire Artifact Virtual enterprise: 7+ products, 11+ services, continuous security auditing, automated releases, financial tracking, and operational excellence — all without human intervention.
-
-This is production infrastructure that has been running continuously since March 2026. Every subsystem was battle-tested in production before being documented.
-
----
-
-## License
-
-Proprietary — see [LICENSE](LICENSE) for details.
-
----
+## 🧬 Lineage
 
 <div align="center">
 
-**⚡ Singularity doesn't aspire. It executes.**
+```
+    Plug (Python, 5,974 lines)          Mach6 (TypeScript)
+    ──────────────────────────          ──────────────────
+    "Taught what breaks"                "Taught what works"
+              │                                  │
+              └──────────────┬───────────────────┘
+                             │
+                    ┌────────┴────────┐
+                    │   SINGULARITY   │
+                    │   [AE] v0.7.0   │
+                    │                 │
+                    │  84 files       │
+                    │  32,206 lines   │
+                    │  13 subsystems  │
+                    │  28 tools       │
+                    └─────────────────┘
+```
 
-<sub>Built by Artifact Virtual · 2026</sub>
+</div>
+
+<br>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!--                        FOOTER                                  -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+
+<div align="center">
+
+---
+
+![Built by AVA](https://img.shields.io/badge/Built_by-AVA_🔮-4B0082?style=flat-square&labelColor=0D1117)
+![Designed by Ali](https://img.shields.io/badge/Designed_by-Ali_Shakil-00D4AA?style=flat-square&labelColor=0D1117)
+![Artifact Virtual](https://img.shields.io/badge/Artifact-Virtual-FF6B35?style=flat-square&labelColor=0D1117)
+
+**If it computes, it will work.**
+
+*Built by [AVA](https://github.com/Artifact-Virtual). Designed by Ali. For the enterprise that runs itself.*
 
 </div>
