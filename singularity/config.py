@@ -55,10 +55,20 @@ class OllamaConfig(BaseModel):
     timeout: float = 120.0
 
 
+class HuggingFaceConfig(BaseModel):
+    """HuggingFace Inference API configuration."""
+    enabled: bool = False
+    model: str = "Qwen/Qwen3.5-27B"
+    api_key: str = ""  # Falls back to HF_TOKEN_ALI or HF_TOKEN env vars
+    base_url: str = "https://router.huggingface.co/v1"
+    timeout: float = 120.0
+
+
 class VoiceConfig(BaseModel):
     """LLM provider configuration."""
     primary_model: str = "claude-sonnet-4"
     fallback_models: list[str] = Field(default_factory=lambda: ["gemini-2.0-flash", "gpt-4.1-mini"])
+    huggingface: HuggingFaceConfig = Field(default_factory=HuggingFaceConfig)
     proxy: ProxyConfig = Field(default_factory=ProxyConfig)
     ollama: OllamaConfig = Field(default_factory=OllamaConfig)
     temperature: float = 0.5

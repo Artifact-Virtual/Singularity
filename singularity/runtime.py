@@ -339,22 +339,39 @@ class Runtime:
             self.tools.set_comb(self.comb)
     
     async def _boot_voice(self) -> None:
-        """Initialize LLM provider chain."""
+        """Initialize LLM provider chain.
+        
+        Chain order: HuggingFace (primary) → Copilot proxy (fallback) → Ollama (last resort)
+        """
         from .voice.chain import ProviderChain
         from .voice.proxy import CopilotProxyProvider
+        from .voice.huggingface import HuggingFaceProvider
         from .voice.ollama import OllamaProvider
         
         vc = self.config.voice
         providers = []
         
-        # Copilot proxy (primary — GitHub Copilot API)
+        # HuggingFace (primary — router.huggingface.co, OpenAI-compatible)
+        hf_config = getattr(vc, 'huggingface', None)
+        if hf_config and getattr(hf_config, 'enabled', False):
+            hf_api_key = hf_config.api_key or os.environ.get("HF_TOKEN_ALI", "") or os.environ.get("HF_TOKEN", "")
+            if hf_api_key:
+                hf = HuggingFaceProvider(
+                    model=hf_config.model or "Qwen/Qwen3.5-27B",
+                    api_key=hf_api_key,
+                    base_url=hf_config.base_url or "https://router.huggingface.co/v1",
+                )
+                providers.append(hf)
+                logger.info(f"  VOICE: HuggingFace provider added (model: {hf.model})")
+        
+        # Copilot proxy (fallback — GitHub Copilot API)
         proxy = CopilotProxyProvider(
             endpoint=vc.proxy.base_url,
             model=vc.primary_model,
         )
         providers.append(proxy)
         
-        # Ollama (fallback — local models)
+        # Ollama (last resort — local models)
         if vc.ollama.enabled:
             ollama = OllamaProvider(
                 endpoint=vc.ollama.base_url,
