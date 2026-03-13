@@ -38,6 +38,7 @@ logger = logging.getLogger("singularity.csuite.cthulu_ops")
 # ── Constants ────────────────────────────────────────────────────────
 
 WEBHOOK_BASE = "http://127.0.0.1:9002"
+COPILOT_URL = "http://127.0.0.1:3000/v1/chat/completions"
 PKT = timezone(timedelta(hours=5))  # Asia/Karachi
 
 # Discord webhook for alerts (heartbeat-monitor style)
@@ -50,6 +51,13 @@ ALI_MENTION = "<@193011943382974466>"
 # Discord channels
 CHANNEL_AVA = "1475929150488449138"
 CHANNEL_HEARTBEAT = "1478862319785349292"
+
+# Note-to-self prompt — generates clean 1-2 line observations
+NOTE_PROMPT = (
+    "You are CthulhOps, a trading operations monitor. "
+    "Given the market data below, write exactly 1-2 sentences of observation. "
+    "Be specific. Note patterns, risks, or opportunities. No filler. No stories."
+)
 
 # Paths
 JOURNAL_DIR = Path(__file__).resolve().parent.parent.parent / ".core" / "reports" / "cthulu"
@@ -334,6 +342,29 @@ class CthulhOps:
         # Journal the position update
         await self._journal_position_update(account_data, current_positions)
 
+        # Generate note-to-self observation
+        note = await self._generate_note(
+            f"Balance: ${balance:.2f}, Equity: ${equity:.2f}, P&L: ${profit:+.2f}, "
+            f"Positions: {len(current_positions)}, "
+            + ", ".join(
+                f"{p.get('symbol')} {_direction(p.get('type',0))} ${p.get('profit',0):+.2f}"
+                for p in current_positions.values()
+            )
+        )
+        if note:
+            path = _journal_path()
+            self._append_journal(path, f"\n> 💭 {note}\n")
+
+        # Post to Discord (clean summary, not verbose)
+        discord_lines = [f"🐙 **{_fmt_pkt()}** | ${balance:.2f} | P&L: ${profit:+.2f}"]
+        for p in current_positions.values():
+            sym = p.get("symbol", "?")
+            pnl = p.get("profit", 0)
+            discord_lines.append(f"  {_pnl_icon(pnl)} {sym} {_direction(p.get('type',0))} ${pnl:+.2f}")
+        if note:
+            discord_lines.append(f"  💭 _{note}_")
+        await self._post_discord_webhook("\n".join(discord_lines))
+
         # Update state
         self._last_positions = current_positions
         self._last_account = account_data
@@ -346,6 +377,43 @@ class CthulhOps:
             "new_trades": len(new_tickets),
             "closed_trades": len(closed_tickets),
         }
+
+    # ── Note-to-Self (via Copilot Proxy) ────────────────────────
+
+    async def _generate_note(self, market_data: str) -> Optional[str]:
+        """Generate a 1-2 sentence observation via copilot proxy.
+        
+        Clean, concise, reflective. Not a data dump — an insight.
+        Returns None on failure (non-fatal).
+        """
+        try:
+            payload = {
+                "model": "gpt-4o-mini",
+                "messages": [
+                    {"role": "system", "content": NOTE_PROMPT},
+                    {"role": "user", "content": market_data},
+                ],
+                "max_tokens": 100,
+                "temperature": 0.3,
+            }
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    COPILOT_URL,
+                    json=payload,
+                    timeout=aiohttp.ClientTimeout(total=15),
+                ) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        choices = data.get("choices", [])
+                        if choices:
+                            note = choices[0].get("message", {}).get("content", "").strip()
+                            if note and len(note) < 500:
+                                return note
+                    logger.debug(f"Copilot note generation returned {resp.status}")
+                    return None
+        except Exception as e:
+            logger.debug(f"Note generation failed (non-fatal): {e}")
+            return None
 
     # ── Journaling ───────────────────────────────────────────────
 
