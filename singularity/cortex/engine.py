@@ -97,6 +97,7 @@ class CortexEngine:
         self.bus = bus
         self.workspace = workspace
         self.comb = comb
+        self.vdb = comb._vdb if comb and hasattr(comb, '_vdb') else None
         
         self._system_prompt: str = ""
         self._prompt_loaded = False

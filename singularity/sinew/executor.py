@@ -63,10 +63,11 @@ class ToolExecutor:
         self._csuite_dispatcher: Any = None  # Set by runtime after C-Suite boot
         self._nexus: Any = None  # Set by runtime after NEXUS boot
         self._comb: Any = None  # Set by runtime after memory boot
+        self._vdb: Any = None   # Set by runtime after memory boot
         self._poa_manager: Any = None  # Set by runtime after POA boot
         self._atlas: Any = None  # Set by runtime after ATLAS boot
         self._release_manager: Any = None  # Set by runtime after release boot
-        self._hektor: Any = None  # Lazy-initialized HektorMemory instance
+        self._hektor: Any = None  # Legacy — kept for backward compat
         self._current_sender_id: str | None = None  # For @mention enforcement
     
     def set_discord_adapter(self, adapter: Any) -> None:
@@ -80,6 +81,10 @@ class ToolExecutor:
     def set_comb(self, comb: Any) -> None:
         """Wire the COMB memory instance (shared with runtime, avoids re-init per call)."""
         self._comb = comb
+    
+    def set_vdb(self, vdb: Any) -> None:
+        """Wire the VDB instance for memory_recall/ingest/stats tools."""
+        self._vdb = vdb
     
     def set_nexus(self, nexus: Any) -> None:
         """Wire the NEXUS self-optimization engine."""
@@ -468,33 +473,96 @@ class ToolExecutor:
         except Exception as e:
             return f"COMB recall error: {e}"
     
-    # ── Memory search ────────────────────────────────────────────
+    # ── Memory tools (VDB) ──────────────────────────────────────────
     
-    async def _tool_memory_search(self, args: dict) -> str:
-        """Search workspace memory using HEKTOR BM25."""
+    async def _tool_memory_recall(self, args: dict) -> str:
+        """Search persistent memory using native VDB (BM25 + TF-IDF hybrid)."""
         query = args.get("query", "")
         k = int(args.get("k", 5))
+        source = args.get("source")
         
         if not query:
             return "Error: query required"
         
+        if not self._vdb:
+            return "Error: VDB not initialized. Memory system not booted."
+        
         try:
-            if not self._hektor:
-                from ..memory.hektor import HektorMemory
-                self._hektor = HektorMemory(workspace=self.workspace)
-            results = await self._hektor.search(query, k=k)
+            results = self._vdb.search(query, k=k, source=source)
             
             if not results:
                 return f"No results for: {query}"
             
             lines = [f"Found {len(results)} results for '{query}':\n"]
             for i, r in enumerate(results, 1):
-                lines.append(f"  [{i}] {r['path']} (score: {r['score']})")
-                lines.append(f"      {r['snippet'][:150]}")
+                # Truncate text for display
+                snippet = r.text[:200].replace('\n', ' ')
+                lines.append(f"  [{i}] [{r.source}] score={r.score:.3f}")
+                lines.append(f"      {snippet}")
                 lines.append("")
             return "\n".join(lines)
         except Exception as e:
-            return f"Memory search error: {e}"
+            return f"Memory recall error: {e}"
+    
+    async def _tool_memory_ingest(self, args: dict) -> str:
+        """Ingest sessions, identity files, and memory files into VDB."""
+        if not self._vdb:
+            return "Error: VDB not initialized."
+        
+        try:
+            from ..memory.vdb import ingest_sessions, ingest_identity_files, ingest_memory_files
+            
+            results = []
+            
+            # Ingest sessions from SQLite
+            sessions_db = self.workspace / ".singularity" / "sessions.db"
+            if sessions_db.exists():
+                r = ingest_sessions(self._vdb, str(sessions_db))
+                results.append(f"Sessions: processed {r['processed']}, indexed {r['indexed']}")
+            
+            # Ingest identity files
+            core_dir = self.workspace / "singularity" / ".core"
+            if core_dir.exists():
+                count = ingest_identity_files(self._vdb, str(core_dir))
+                results.append(f"Identity: indexed {count} chunks")
+            
+            # Ingest memory files
+            memory_dir = self.workspace / "memory"
+            if memory_dir.exists():
+                count = ingest_memory_files(self._vdb, str(memory_dir))
+                results.append(f"Memory files: indexed {count} chunks")
+            
+            return "✅ Memory ingestion complete:\n" + "\n".join(f"  • {r}" for r in results)
+        except Exception as e:
+            return f"Memory ingest error: {e}"
+    
+    async def _tool_memory_stats(self, args: dict) -> str:
+        """Get VDB statistics."""
+        if not self._vdb:
+            return "Error: VDB not initialized."
+        
+        try:
+            stats = self._vdb.stats()
+            lines = [
+                "═══ VDB Memory Stats ═══",
+                f"Documents: {stats.document_count}",
+                f"Terms: {stats.term_count}",
+                f"Disk: {stats.disk_bytes:,} bytes ({stats.disk_bytes / 1024:.1f} KB)",
+                f"Last indexed: {stats.last_indexed}",
+                "",
+                "Sources:",
+            ]
+            for source, count in sorted(stats.sources.items(), key=lambda x: -x[1]):
+                lines.append(f"  {source}: {count}")
+            return "\n".join(lines)
+        except Exception as e:
+            return f"Memory stats error: {e}"
+    
+    # ── Memory search (legacy compat — routes to VDB) ────────────────
+    
+    async def _tool_memory_search(self, args: dict) -> str:
+        """Legacy memory_search — routes to memory_recall via VDB."""
+        return await self._tool_memory_recall(args)
     
     # ── C-Suite Executive Discord Channel Map ──
     # Maps executive role names to their dedicated Discord channel IDs

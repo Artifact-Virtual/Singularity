@@ -102,7 +102,8 @@ class Runtime:
         # Subsystem references (populated during boot)
         self.sessions = None     # MEMORY sessions
         self.comb = None         # MEMORY COMB
-        self.hektor = None       # MEMORY HEKTOR (search)
+        self.vdb = None          # MEMORY VDB (native vector database)
+        self.hektor = None       # MEMORY HEKTOR (file search — kept but not booted)
         self.tools = None        # SINEW executor
         self.voice = None        # VOICE provider chain
         self.cortex = None       # CORTEX engine
@@ -118,6 +119,7 @@ class Runtime:
         self._nexus_daemon = None  # NEXUS evolution daemon (subagent)
         self.atlas = None        # ATLAS board manager
         self._release_manager = None  # POA release manager
+        self.cthulu_ops = None   # CthulhOps trading agent
         
         self._running = False
         self._boot_time: float | None = None
@@ -196,6 +198,10 @@ class Runtime:
         # Phase 8.7: ATLAS Board Manager (requires PULSE + bus)
         logger.info("[8.7/12] Starting ATLAS board manager...")
         await self._boot_atlas()
+
+        # Phase 8.8: CthulhOps Trading Agent (requires PULSE + bus)
+        logger.info("[8.8/12] Starting CthulhOps trading agent...")
+        await self._boot_cthulu_ops()
 
         # Phase 9: Health + Immune
         logger.info("[9/12] Initializing health monitoring (IMMUNE)...")
@@ -281,10 +287,15 @@ class Runtime:
     # ── Individual Boot Phases ────────────────────────────────
     
     async def _boot_memory(self) -> None:
-        """Initialize memory subsystem (COMB + HEKTOR + Sessions)."""
+        """Initialize memory subsystem (VDB + COMB + Sessions).
+        
+        VDB is the primary memory search engine (BM25 + TF-IDF hybrid).
+        COMB is a thin stage/recall layer feeding into VDB.
+        HEKTOR is kept on disk but not booted — VDB handles search.
+        """
         from .memory.sessions import SessionStore
         from .memory.comb import CombMemory
-        from .memory.hektor import HektorMemory
+        from .memory.vdb import VectorDB, ingest_identity_files, ingest_sessions
         
         sg_root = os.path.join(self.workspace, "singularity")
         core_memory = os.path.join(sg_root, ".core", "memory")
@@ -295,9 +306,30 @@ class Runtime:
         self.sessions = SessionStore(db_path=sessions_db, bus=self.bus)
         await self.sessions.open()
         
+        # VDB — native embedded vector database
+        vdb_path = os.path.join(core_memory, "vdb")
+        self.vdb = VectorDB(base_dir=vdb_path, bus=self.bus)
+        logger.info(f"  VDB store: {vdb_path}")
+        
+        # Auto-ingest identity files at boot
+        core_dir = os.path.join(sg_root, ".core")
+        if os.path.isdir(core_dir):
+            id_count = ingest_identity_files(self.vdb, core_dir)
+            if id_count > 0:
+                logger.info(f"  VDB identity: indexed {id_count} chunks")
+        
+        # Auto-ingest sessions at boot (lightweight — dedup prevents re-indexing)
+        if os.path.exists(sessions_db):
+            result = ingest_sessions(self.vdb, sessions_db)
+            if result["indexed"] > 0:
+                logger.info(f"  VDB sessions: indexed {result['indexed']} messages")
+        
+        vdb_stats = self.vdb.stats()
+        logger.info(f"  VDB ready: {vdb_stats.document_count} docs, {vdb_stats.term_count} terms")
+        
         # COMB — persistent memory, lives in .core/memory/comb/
         comb_path = os.path.join(core_memory, "comb")
-        self.comb = CombMemory(store_path=comb_path, bus=self.bus)
+        self.comb = CombMemory(store_path=comb_path, bus=self.bus, vdb=self.vdb)
         await self.comb.initialize()
         logger.info(f"  COMB store: {comb_path}")
         
@@ -309,15 +341,18 @@ class Runtime:
             else:
                 logger.info("  COMB recall: empty (first boot or no staged content)")
         
-        # HEKTOR — BM25 search over workspace files
-        hektor_path = os.path.join(core_memory, "hektor")
-        self.hektor = HektorMemory(
-            workspace=self.workspace,
-            index_dir=hektor_path,
-            bus=self.bus,
-        )
-        file_count = await self.hektor.index()
-        logger.info(f"  HEKTOR indexed: {file_count} files")
+        # Wire VDB idle check into a periodic task
+        async def _vdb_idle_check():
+            """Periodically check if VDB should be evicted from memory."""
+            while self._running:
+                try:
+                    if self.vdb and self.vdb.check_idle():
+                        logger.debug("VDB evicted due to idle timeout")
+                except Exception:
+                    pass
+                await asyncio.sleep(60)  # Check every minute
+        
+        asyncio.ensure_future(_vdb_idle_check())
         
         logger.info(f"  MEMORY ready (workspace: {self.workspace})")
     
@@ -337,6 +372,10 @@ class Runtime:
         # Wire COMB into executor (memory booted in Phase 2, before SINEW)
         if self.comb:
             self.tools.set_comb(self.comb)
+        
+        # Wire VDB into executor for memory_recall/ingest/stats tools
+        if self.vdb:
+            self.tools.set_vdb(self.vdb)
     
     async def _boot_voice(self) -> None:
         """Initialize LLM provider chain.
@@ -901,6 +940,84 @@ class Runtime:
         except Exception as e:
             logger.warning(f"  ATLAS failed to start: {e}")
             self.atlas = None
+
+    async def _boot_cthulu_ops(self) -> None:
+        """Initialize CthulhOps trading operations agent with PULSE jobs."""
+        try:
+            from .csuite.cthulu_ops import CthulhOps
+            from .pulse.scheduler import JobConfig, JobType
+
+            self.cthulu_ops = CthulhOps(
+                bus=self.bus,
+                workspace=self.config.tools.workspace,
+            )
+
+            if not self.scheduler:
+                logger.warning("  CthulhOps: PULSE scheduler not available, skipping job registration")
+                return
+
+            # Health check every 5 minutes
+            self.scheduler.add(JobConfig(
+                id="cthulu-health",
+                name="CthulhOps Health Check",
+                job_type=JobType.INTERVAL,
+                interval_seconds=300,  # 5 min
+                emit_topic="cthulu.health.trigger",
+            ))
+
+            # Position check every 15 minutes
+            self.scheduler.add(JobConfig(
+                id="cthulu-positions",
+                name="CthulhOps Position Check",
+                job_type=JobType.INTERVAL,
+                interval_seconds=900,  # 15 min
+                emit_topic="cthulu.positions.trigger",
+            ))
+
+            # Daily summary at 17:00 UTC (10 PM PKT)
+            # Use interval with active_hours constraint
+            self.scheduler.add(JobConfig(
+                id="cthulu-daily-summary",
+                name="CthulhOps Daily Summary",
+                job_type=JobType.INTERVAL,
+                interval_seconds=3600,  # check every hour
+                emit_topic="cthulu.daily_summary.trigger",
+                active_hours=(17, 18),  # Only fire between 17:00-18:00 UTC
+                max_fires=1,  # Only once (re-registered on reboot)
+            ))
+
+            # Wire event handlers
+            @self.bus.on("cthulu.health.trigger")
+            async def on_cthulu_health(event):
+                if self.cthulu_ops:
+                    await self.cthulu_ops.run_health_cycle()
+
+            @self.bus.on("cthulu.positions.trigger")
+            async def on_cthulu_positions(event):
+                if self.cthulu_ops:
+                    await self.cthulu_ops.run_position_cycle()
+
+            @self.bus.on("cthulu.daily_summary.trigger")
+            async def on_cthulu_daily(event):
+                if self.cthulu_ops:
+                    await self.cthulu_ops.run_daily_summary()
+
+            # Run initial position check after 30s (let everything stabilize)
+            async def _initial_cthulu_check():
+                await asyncio.sleep(30)
+                try:
+                    await self.cthulu_ops.run_health_cycle()
+                    await self.cthulu_ops.run_position_cycle()
+                    logger.info("  CthulhOps initial check complete")
+                except Exception as e:
+                    logger.error(f"CthulhOps initial check failed: {e}")
+
+            asyncio.ensure_future(_initial_cthulu_check())
+            logger.info("  🐙 CthulhOps ready (health:5m, positions:15m, summary:10PM PKT)")
+
+        except Exception as e:
+            logger.warning(f"  CthulhOps failed to start: {e}")
+            self.cthulu_ops = None
 
     async def _boot_pulse(self) -> None:
         """Initialize scheduler."""

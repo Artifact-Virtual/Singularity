@@ -57,6 +57,7 @@ class RoleType(str, Enum):
     CMO = "cmo"       # Chief Marketing Officer
     CDO = "cdo"       # Chief Data Officer
     CCO = "cco"       # Chief Compliance Officer
+    CTO_OPS = "cto_ops"  # Cthulu Trading Operations
     CUSTOM = "custom"  # User-defined roles
 
     @classmethod

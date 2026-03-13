@@ -216,8 +216,8 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
     {
         "type": "function",
         "function": {
-            "name": "memory_search",
-            "description": "Search enterprise memory using HEKTOR (BM25 + vector hybrid search).",
+            "name": "memory_recall",
+            "description": "Search persistent memory using the native VDB (BM25 + TF-IDF hybrid search). Returns semantically relevant results from indexed conversations, identity files, COMB entries, and memory files.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -229,13 +229,37 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
                         "type": "number",
                         "description": "Number of results (default 5)",
                     },
-                    "mode": {
+                    "source": {
                         "type": "string",
-                        "enum": ["bm25", "vector", "hybrid"],
-                        "description": "Search mode (default: hybrid)",
+                        "enum": ["discord", "whatsapp", "comb", "identity", "memory"],
+                        "description": "Filter by source (optional)",
                     },
                 },
                 "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "memory_ingest",
+            "description": "Ingest conversation history and files into persistent memory (VDB). Indexes sessions, identity files, and memory files. Deduplication prevents re-indexing.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "memory_stats",
+            "description": "Show persistent memory (VDB) database statistics — document count, term count, disk usage, source breakdown.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": [],
             },
         },
     },
