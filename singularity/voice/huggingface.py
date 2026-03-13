@@ -45,7 +45,7 @@ class HuggingFaceProvider(ChatProvider):
         **kwargs,
     ):
         super().__init__(name="huggingface", model=model, **kwargs)
-        self._api_key = api_key or os.environ.get("HF_TOKEN_ALI", "") or os.environ.get("HF_TOKEN", "")
+        self._api_key = api_key or os.environ.get("HF_TOKEN_AVA", "") or os.environ.get("HF_TOKEN_ALI", "") or os.environ.get("HF_TOKEN", "")
         self._base_url = base_url.rstrip("/")
         self._session: Optional[aiohttp.ClientSession] = None
 
@@ -119,7 +119,8 @@ class HuggingFaceProvider(ChatProvider):
 
                         try:
                             parsed = json.loads(data)
-                        except json.JSONDecodeError:
+                        except Exception as e:
+                            logger.debug(f"Suppressed: {e}")
                             continue
 
                         # Usage

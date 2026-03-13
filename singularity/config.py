@@ -59,7 +59,7 @@ class HuggingFaceConfig(BaseModel):
     """HuggingFace Inference API configuration."""
     enabled: bool = False
     model: str = "Qwen/Qwen3.5-27B"
-    api_key: str = ""  # Falls back to HF_TOKEN_ALI or HF_TOKEN env vars
+    api_key: str = ""  # Falls back to HF_TOKEN_AVA, HF_TOKEN_ALI, or HF_TOKEN env vars
     base_url: str = "https://router.huggingface.co/v1"
     timeout: float = 120.0
 

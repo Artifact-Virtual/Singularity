@@ -354,7 +354,7 @@ class Runtime:
         # HuggingFace (primary — router.huggingface.co, OpenAI-compatible)
         hf_config = getattr(vc, 'huggingface', None)
         if hf_config and getattr(hf_config, 'enabled', False):
-            hf_api_key = hf_config.api_key or os.environ.get("HF_TOKEN_ALI", "") or os.environ.get("HF_TOKEN", "")
+            hf_api_key = hf_config.api_key or os.environ.get("HF_TOKEN_AVA", "") or os.environ.get("HF_TOKEN_ALI", "") or os.environ.get("HF_TOKEN", "")
             if hf_api_key:
                 hf = HuggingFaceProvider(
                     model=hf_config.model or "Qwen/Qwen3.5-27B",
