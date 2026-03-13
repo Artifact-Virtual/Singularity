@@ -203,7 +203,7 @@ class CthulhOps:
         if tick:
             tick_time = tick.get("time", 0)
             if tick_time:
-                age = time.time() - tick_time
+                age = time.time() - float(tick_time)
                 status["tick_fresh"] = age < 120  # 2 min tolerance
                 if not status["tick_fresh"]:
                     status["alerts"].append(f"Stale ticks — BTCUSD# last tick {int(age)}s ago")

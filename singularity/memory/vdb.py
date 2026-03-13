@@ -327,8 +327,8 @@ class VectorDB:
                 disk_bytes += os.path.getsize(self._docs_file)
             if os.path.exists(self._index_file):
                 disk_bytes += os.path.getsize(self._index_file)
-        except OSError:
-            pass
+        except Exception as e:
+            logger.debug(f"Suppressed: {e}")
 
         return VDBStats(
             document_count=len(self._docs),
@@ -368,8 +368,8 @@ class VectorDB:
         try:
             if os.path.exists(self._docs_file):
                 before = os.path.getsize(self._docs_file)
-        except OSError:
-            pass
+        except Exception as e:
+            logger.debug(f"Suppressed: {e}")
 
         lines = []
         for doc in self._docs.values():
