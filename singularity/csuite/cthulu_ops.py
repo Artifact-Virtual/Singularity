@@ -55,9 +55,9 @@ CHANNEL_JOURNAL = "1480654393610211470"  # Thread "Daily Trading Log" in #journa
 
 # Note-to-self prompt — generates clean 1-2 line observations
 NOTE_PROMPT = (
-    "You are CthulhOps, a trading ops agent. Write ONE short sentence noting "
-    "what's interesting or worth watching in this data. Be specific, not generic. "
-    "No introductions. No hedging. Just the observation."
+    "One sentence max, 15 words. What's the sharpest observation about this trading data? "
+    "Example: 'BTC carrying the book while EUR bleeds — watch for reversal.' "
+    "No explanations. No analysis. Just the note."
 )
 
 # Paths
