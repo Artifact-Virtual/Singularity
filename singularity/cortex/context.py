@@ -97,8 +97,19 @@ class ContextAssembler:
         """Estimate the character cost of a message, including tool_calls metadata."""
         chars = len(msg.content or "")
         if msg.tool_calls:
-            # Fast estimate: ~200 chars per tool call avoids json.dumps overhead
-            chars += 200 * len(msg.tool_calls)
+            for tc in msg.tool_calls:
+                # Count actual argument sizes — these dominate token count
+                fn = tc.get("function", tc)
+                args = fn.get("arguments", fn.get("input", ""))
+                if isinstance(args, dict):
+                    # Sum values — faster than json.dumps
+                    chars += sum(len(str(v)) for v in args.values()) + 100
+                elif isinstance(args, str):
+                    chars += len(args) + 100
+                else:
+                    chars += 200
+                # Function name + id overhead
+                chars += len(str(fn.get("name", ""))) + 80
         if msg.tool_call_id:
             chars += len(msg.tool_call_id) + 20
         if msg.name:
