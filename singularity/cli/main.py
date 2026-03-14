@@ -154,6 +154,11 @@ def main():
     p_deploy.add_argument("--bot-id", help="Bot application/client ID")
     p_deploy.add_argument("--invite-only", action="store_true", help="Just generate invite link")
 
+    # ── workspace ──
+    p_workspace = sub.add_parser("workspace", help="Google Workspace integration (Gmail, Drive, Docs, Sheets, Calendar, NotebookLM)")
+    p_workspace.add_argument("subcommand", nargs="*", default=["status"],
+                             help="Workspace subcommand: setup, status, test, revoke, podcast, gmail, drive")
+
     args = parser.parse_args()
 
     try:
@@ -181,6 +186,9 @@ def main():
             cmd_install(args)
         elif args.command == "deploy":
             cmd_deploy(args)
+        elif args.command == "workspace":
+            from singularity.workspace.cli import workspace_command
+            workspace_command(args.subcommand)
     except KeyboardInterrupt:
         print("\nAborted.")
         sys.exit(1)

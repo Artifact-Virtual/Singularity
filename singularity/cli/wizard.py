@@ -66,7 +66,7 @@ BANNER = f"""
 {DIM}  Workspace discovery · C-Suite · POA monitoring · Sentinel{R}
 """
 
-TOTAL_STEPS = 6
+TOTAL_STEPS = 7
 
 # ─────────────────────────────────────────────────────────────
 #  STEP 1 — workspace / enterprise repo
@@ -265,8 +265,27 @@ logging:
 # ─────────────────────────────────────────────────────────────
 #  STEP 6 — verify + launch
 # ─────────────────────────────────────────────────────────────
+def step_google_workspace() -> None:
+    hdr(6, TOTAL_STEPS, "Google Workspace")
+    print("  Singularity can integrate with Google Workspace services:")
+    print("  Gmail, Drive, Docs, Sheets, Slides, Calendar, Tasks")
+    print("  Plus NotebookLM-style podcast generation via Gemini.")
+    print()
+
+    if not confirm("Set up Google Workspace integration?", default=True):
+        print("  Skipped. Run 'singularity workspace setup' later.\n")
+        return
+
+    try:
+        from singularity.workspace.cli import cmd_setup
+        cmd_setup([])
+    except Exception as e:
+        print(f"\n  ⚠️  Workspace setup failed: {e}")
+        print("  You can retry later with: singularity workspace setup\n")
+
+
 def step_verify(ws: Path, cfg_path: Path) -> None:
-    hdr(6, TOTAL_STEPS, "Verify")
+    hdr(7, TOTAL_STEPS, "Verify")
 
     checks = [
         ("Workspace",        ws.is_dir()),
@@ -339,6 +358,7 @@ def run_wizard() -> None:
     llm      = step_llm()
     step_memory(ws)
     cfg_path = step_config(ws, identity, llm)
+    step_google_workspace()
     step_verify(ws, cfg_path)
 
     if confirm("Install systemd service?", default=True):

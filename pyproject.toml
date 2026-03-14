@@ -29,6 +29,14 @@ classifiers = [
 Homepage = "https://artifactvirtual.com"
 Repository = "https://github.com/Artifact-Virtual/singularity"
 
+[project.optional-dependencies]
+workspace = [
+    "google-api-python-client>=2.100.0",
+    "google-auth-httplib2>=0.2.0",
+    "google-auth-oauthlib>=1.0.0",
+    "google-genai>=1.50.0",
+]
+
 [project.scripts]
 singularity = "singularity.cli.main:main"
 singularity-install-service = "singularity.cli.wizard:run_wizard"

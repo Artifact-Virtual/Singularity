@@ -17,7 +17,7 @@ Usage:
 """
 
 from .main import main
-from .wizard import InitWizard
+from .wizard import run_wizard
 from .formatters import (
     fmt,
     Table,
@@ -35,7 +35,7 @@ from .formatters import (
 
 __all__ = [
     "main",
-    "InitWizard",
+    "run_wizard",
     "fmt",
     "Table",
     "StatusBox",

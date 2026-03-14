@@ -97,3 +97,4 @@ aria/csuite/roles_v1.py
 .core/operations/comb-flush-security-audit.md
 .core/operations/comb-security-audit.md
 .core/install.json
+config/workspace-sa-key.json
