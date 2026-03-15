@@ -27,8 +27,8 @@
   --color-popover: 0 0% 100%;
   --color-popover-foreground: 222.2 84% 4.9%;
   
-  --color-primary: 221.2 83.2% 53.3%;
-  --color-primary-foreground: 210 40% 98%;
+  --color-primary: 247.2 100% 70.8%;
+  --color-primary-foreground: 0 0% 100%;
   
   --color-secondary: 210 40% 96.1%;
   --color-secondary-foreground: 222.2 47.4% 11.2%;
@@ -49,7 +49,7 @@
   /* Sidebar Colors */
   --color-sidebar: 0 0% 98%;
   --color-sidebar-foreground: 240 5.3% 26.1%;
-  --color-sidebar-primary: 221.2 83.2% 53.3%;
+  --color-sidebar-primary: 247.1 53.8% 56.7%;
   --color-sidebar-primary-foreground: 0 0% 100%;
   --color-sidebar-accent: 240 4.8% 95.9%;
   --color-sidebar-accent-foreground: 240 5.9% 10%;

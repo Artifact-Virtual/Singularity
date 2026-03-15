@@ -255,8 +255,8 @@ export function AppLayout({ children }: AppLayoutProps) {
         {/* Logo */}
         <div className="flex h-16 items-center justify-between px-4 border-b border-sidebar-border">
           {!sidebarCollapsed && (
-            <span className="text-lg font-semibold text-sidebar-foreground">
-              SINGULARITY
+            <span className="text-lg font-semibold text-sidebar-foreground flex items-center gap-2">
+              <span className="text-primary">⚡</span> SINGULARITY
             </span>
           )}
           <button

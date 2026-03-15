@@ -50,8 +50,16 @@ fastify.register(jwt, {
   },
 });
 
-// Rate limiting DISABLED — Singularity integration requires unrestricted access
-// fastify.register(rateLimit, { ... });
+// Rate limiting — high limits for Singularity internal traffic, stricter for external
+fastify.register(rateLimit, {
+  max: 500,
+  timeWindow: '1 minute',
+  allowList: ['127.0.0.1', '::1', '192.168.1.13'],
+  errorResponseBuilder: () => ({
+    error: 'Too many requests',
+    message: 'Rate limit exceeded. Please try again later.',
+  }),
+});
 
 // Register Swagger
 fastify.register(swagger, {

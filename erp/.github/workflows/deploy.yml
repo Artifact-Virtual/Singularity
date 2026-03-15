@@ -1,0 +1,118 @@
+name: Deploy Singularity ERP
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  test:
+    name: Type Check & Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: |
+            backend/package-lock.json
+            studio/app/package-lock.json
+
+      - name: Install backend deps
+        working-directory: backend
+        run: npm ci
+
+      - name: Install frontend deps
+        working-directory: studio/app
+        run: npm ci
+
+      - name: Type check backend
+        working-directory: backend
+        run: npx tsc --noEmit
+
+      - name: Type check frontend
+        working-directory: studio/app
+        run: npx tsc --noEmit
+
+  build:
+    name: Build Production Bundle
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: studio/app/package-lock.json
+
+      - name: Install frontend deps
+        working-directory: studio/app
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: studio/app
+        run: npm run build
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: studio/app/dist/
+          retention-days: 7
+
+  deploy:
+    name: Deploy to Production
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: dist/
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_KEY }}
+          script: |
+            set -e
+            
+            # Pull latest code
+            cd /home/adam/workspace/business_erp
+            git pull origin main
+            
+            # Install & build backend
+            cd backend
+            npm ci --production
+            npx prisma generate
+            
+            # Install & build frontend
+            cd ../studio/app
+            npm ci
+            npm run build
+            
+            # Deploy frontend to nginx
+            sudo rm -rf /var/www/erp/*
+            sudo cp -r dist/* /var/www/erp/
+            
+            # Restart backend service
+            systemctl --user restart artifact-erp
+            
+            # Verify
+            sleep 3
+            curl -sf http://localhost:3100/health || exit 1
+            echo "✅ Deploy complete"
