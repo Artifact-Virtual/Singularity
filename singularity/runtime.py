@@ -2033,10 +2033,12 @@ class Runtime:
                                             if self.cortex:
                                                 try:
                                                     _ciso_cortex_msg = (
-                                                        f"SECURITY ALERT — ExfilGuard detected {severity} event.\n"
+                                                        f"C-Suite Dispatch {dispatch_id} complete. Results require your review and action:\n\n"
+                                                        f"⏱️ CISO ({int(ciso_result.elapsed)}s):\n"
                                                         f"IP: {payload.get('ip', '?')} | rDNS: {payload.get('rdns', '?')} | Process: {payload.get('process', '?')}\n\n"
-                                                        f"CISO Report:\n{ciso_response[:2000]}\n\n"
-                                                        f"REQUIRED: Review this security finding. Take any needed action (block IP, investigate further, whitelist if false positive, escalate). Report outcome to Ali."
+                                                        f"{ciso_response[:2000]}\n\n"
+                                                        f"REQUIRED: Read the above executive results. Determine if any action, fix, or follow-up is needed. If yes, take it now. Report outcome to Ali in #bridge.\n"
+                                                        f"⚠️ DO NOT dispatch to CISO again — this IS the CISO result. Take direct action yourself or report to Ali."
                                                     )
                                                     asyncio.create_task(self.cortex.process(
                                                         session_id=f"exfil-ciso-{payload.get('ip','unknown').replace('.', '-')}",
